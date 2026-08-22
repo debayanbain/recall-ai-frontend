@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { AppShell } from "@/components/app-shell";
 import { CaptureBar } from "@/components/capture-bar";
 import { MemoryGrid } from "@/components/memory-grid";
+import { AnimateSvg } from "@/components/ui/animate-svg";
 
 export const metadata: Metadata = {
   title: "RecallAI — your second brain",
@@ -27,7 +28,27 @@ export default function Home() {
             <Sparkles className="h-3 w-3 shrink-0" /> Capture in under 3 seconds
           </Badge>
           <h1 className="mt-4 max-w-4xl font-display text-[34px] leading-[1.05] tracking-tight sm:mt-5 sm:text-[44px] md:text-[60px]">
-            What do you want to <span className="text-gradient italic">remember</span>?
+            What do you want to{" "}
+            <span className="relative inline-block">
+              <span className="text-gradient italic">remember</span>
+              {/* Hand-drawn underline that draws itself in, and redraws on hover. */}
+              <AnimateSvg
+                className="absolute -bottom-1 left-0 h-2.5 w-full sm:-bottom-1.5 sm:h-3"
+                viewBox="0 0 279 37"
+                path="M276.107 10.7667C258.31 28.3296 234.687 49.9446 218.918 18.406C204.994 -9.44212 183.022 5.05179 163.639 21.9074C157.838 26.9518 147.594 35.084 139.023 33.2603C131.032 31.5602 124.159 19.4215 117.166 15.0108C102.691 5.88068 78.6731 19.6982 64.5392 24.1355C43.8618 30.6273 24.6478 36.5711 3 33.6847"
+                strokeColor="oklch(0.62 0.2 290)"
+                strokeWidth={3}
+                strokeLinecap="round"
+                animationDuration={1.8}
+                animationDelay={0.35}
+                loop
+                loopDelay={2.2}
+                enableHoverAnimation
+                hoverAnimationType="redraw"
+                hoverStrokeColor="oklch(0.7 0.17 270)"
+              />
+            </span>
+            ?
           </h1>
           <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-muted-foreground sm:text-[15px]">
             Paste a link, jot an idea, drop a file or hold to speak. RecallAI summarizes, tags and

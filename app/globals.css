@@ -163,6 +163,23 @@
     @apply border-border outline-ring/50;
   }
 
+  /* Scrollbars are hidden app-wide; scrolling itself is untouched (wheel,
+     trackpad, touch, keyboard and scroll-into-view all still work). */
+  *,
+  html,
+  body {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  *::-webkit-scrollbar,
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
