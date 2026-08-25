@@ -29,6 +29,7 @@ export type ContentType =
   | "pdf"
   | "note"
   | "instagram"
+  | "facebook"
   | "tiktok"
   | "linkedin"
   | "voice"

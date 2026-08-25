@@ -5,6 +5,7 @@ import { Heart, LayoutGrid, List, Search, SlidersHorizontal } from "lucide-react
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -60,14 +61,28 @@ export function MemoryGrid({
   showViewToggle = false,
   duplicateForDensity = false,
   columns = "xl:columns-4",
+  items,
+  isLoading = false,
+  isError = false,
+  onRetry,
 }: {
   heading?: string;
   showViewToggle?: boolean;
   /** The vault repeats the seed set so the masonry grid reads as a full library. */
   duplicateForDensity?: boolean;
   columns?: string;
+  /**
+   * Real memories from the API. When omitted the grid falls back to the local store,
+   * which is still what the pages not yet migrated off mock data rely on.
+   */
+  items?: Memory[];
+  isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 }) {
-  const { memories, favorites } = useStore();
+  const store = useStore();
+  const memories = items ?? store.memories;
+  const favorites = store.favorites;
   const capture = useCapture();
   const [filter, setFilter] = useState<FilterId>("all");
   const [sort, setSort] = useState<SortId>("relevant");
@@ -80,11 +95,13 @@ export function MemoryGrid({
 
   const results = useMemo(() => {
     const active = filters.find((f) => f.id === filter);
-    let items = active?.kinds ? memories.filter((m) => active.kinds!.includes(m.kind)) : memories;
-    if (onlyFavorites) items = items.filter((m) => favorites.includes(m.id));
-    items = sortMemories(items, sort);
-    return duplicateForDensity && filter === "all" && !onlyFavorites ? [...items, ...items] : items;
-  }, [memories, favorites, filter, sort, onlyFavorites, duplicateForDensity]);
+    let list = active?.kinds ? memories.filter((m) => active.kinds!.includes(m.kind)) : memories;
+    if (onlyFavorites) list = list.filter((m) => favorites.includes(m.id));
+    list = sortMemories(list, sort);
+    // Only the mock library is padded out; real memories are shown as they are.
+    const pad = duplicateForDensity && !items && filter === "all" && !onlyFavorites;
+    return pad ? [...list, ...list] : list;
+  }, [memories, favorites, filter, sort, onlyFavorites, duplicateForDensity, items]);
 
   return (
     <section>
@@ -179,7 +196,43 @@ export function MemoryGrid({
         {onlyFavorites && " · favorites only"}
       </p>
 
-      {results.length === 0 ? (
+      {isLoading ? (
+        // Reserve the grid's footprint so the page does not jump when data lands.
+        <div
+          aria-busy="true"
+          aria-label="Loading memories"
+          className={`mt-5 columns-1 gap-4 sm:columns-2 sm:gap-5 lg:columns-3 ${columns}`}
+        >
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <Skeleton
+              key={i}
+              className={`mb-4 w-full rounded-3xl sm:mb-5 ${
+                i % 3 === 0 ? "h-52" : i % 3 === 1 ? "h-72" : "h-40"
+              }`}
+            />
+          ))}
+        </div>
+      ) : isError ? (
+        <Card className="mt-5 gap-0 rounded-3xl border border-destructive/30 bg-destructive/5 py-0 shadow-none ring-0">
+          <CardContent className="px-6 py-12 text-center" role="alert">
+            <h3 className="font-display text-[20px] tracking-tight text-destructive">
+              We couldn&rsquo;t load your memories
+            </h3>
+            <p className="mx-auto mt-1.5 max-w-sm text-[13px] leading-relaxed text-destructive/85">
+              The vault is saved — this is just the list failing to load.
+            </p>
+            {onRetry && (
+              <Button
+                variant="ghost"
+                onClick={onRetry}
+                className="mt-4 h-11 rounded-xl px-4 text-[13.5px] font-semibold tracking-normal text-destructive normal-case hover:bg-destructive/10"
+              >
+                Try again
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ) : results.length === 0 ? (
         <motion.div variants={panelVariants} initial="hidden" animate="show">
         <Card className="mt-5 gap-0 rounded-3xl border border-dashed border-border bg-secondary/30 py-0 shadow-none ring-0">
           <CardContent className="px-6 py-14 text-center">

@@ -3,7 +3,7 @@ import { Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AppShell } from "@/components/app-shell";
 import { CaptureBar } from "@/components/capture-bar";
-import { MemoryGrid } from "@/components/memory-grid";
+import { MemoryFeed } from "@/components/memory-feed";
 import { AnimateSvg } from "@/components/ui/animate-svg";
 
 export const metadata: Metadata = {
@@ -59,7 +59,7 @@ export default function Home() {
       </section>
 
       <div className="mt-8 sm:mt-10">
-        <MemoryGrid heading="Recent memories" />
+        <MemoryFeed heading="Recent memories" limit={12} />
       </div>
     </AppShell>
   );

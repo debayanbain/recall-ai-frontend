@@ -49,6 +49,14 @@ sets an HttpOnly `recall_session` cookie; nothing auth-related is readable from 
 `lib/query-keys.ts`. `useSession()` resolves a 401 to `null` rather than throwing, since signed
 out is an answer, not a failure.
 
+**The vault is on the real API; everything else is still mock.** `/vault` renders
+`useVaultItems()` through `lib/vault-adapter.ts`, which maps a `VaultItem` onto the `Memory`
+shape the cards already speak — the enums differ on purpose (the API discriminates by *source*,
+the UI by *medium*), so the mapping is lossy. `MemoryGrid` takes an optional `items` prop and
+falls back to the local store when it is omitted, which is what spaces/timeline/chat/share
+still use. Capture posts to `/vault/save` or `/vault/note`; a fresh item legitimately has no
+summary until the worker runs, so the adapter supplies status-aware placeholder copy.
+
 **Client state → zustand** (`lib/store.ts` for memories, `lib/stores/ui-store.ts` for view
 prefs). Both persist with `skipHydration: true` and are rehydrated by `useHydrateStores()` inside
 `Providers` — rehydrating at module scope makes the first client render disagree with the SSR

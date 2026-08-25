@@ -89,3 +89,28 @@ export function oauthLoginUrl(provider: string, next = "/vault"): string {
   const query = new URLSearchParams({ next: safeNext });
   return `${API_BASE}${API_PREFIX}/auth/${encodeURIComponent(provider)}/login?${query}`;
 }
+
+
+/**
+ * Multipart upload. Separate from `apiFetch` because the browser must set
+ * `Content-Type: multipart/form-data; boundary=…` itself — setting it by hand omits the
+ * boundary and the server cannot parse the body.
+ */
+export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
+  const response = await fetch(`${API_BASE}${API_PREFIX}${path}`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "X-Requested-With": "fetch",
+      "ngrok-skip-browser-warning": "true",
+    },
+    body: form,
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const detail = typeof payload?.detail === "string" ? payload.detail : null;
+    throw new ApiError(response.status, detail ?? `Upload failed (${response.status})`);
+  }
+  return payload as T;
+}
