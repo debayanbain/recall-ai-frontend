@@ -25,8 +25,38 @@ const DEV_ORIGINS = [
   ...(process.env.DEV_ORIGIN ? [process.env.DEV_ORIGIN] : []),
 ];
 
+/**
+ * `next dev` only ever prints the address it bound to, because a tunnel is a separate
+ * process it knows nothing about. When the app is actually reached through one, the
+ * localhost line is actively misleading: OAuth callbacks are registered against the
+ * tunnel, so opening localhost produces `invalid_state` on every sign-in.
+ *
+ * next.config.ts is evaluated at startup, so printing here puts the real entry point in
+ * the same banner. Dev only — a production build has no tunnel and no need.
+ */
+if (process.env.NODE_ENV !== "production" && process.env.APP_ORIGIN) {
+  const origin = process.env.APP_ORIGIN.replace(/\/$/, "");
+  console.log(
+    [
+      "",
+      `  ▲ RecallAI is served at  ${origin}`,
+      "    Open that, not localhost — OAuth callbacks are registered against it.",
+      "",
+    ].join("\n"),
+  );
+}
+
 const nextConfig: NextConfig = {
   allowedDevOrigins: DEV_ORIGINS,
+
+  experimental: {
+    // Next buffers a proxied request body in memory, defaulting to 10MB — and on
+    // exceeding it the body is TRUNCATED, not rejected. Our PDF cap is also 10MB, so at
+    // the boundary FastAPI would receive a half-file and report "this PDF is corrupt"
+    // instead of "too big". Raising the proxy above the app's limit keeps FastAPI the
+    // single place that decides, and keeps its error message the accurate one.
+    proxyClientMaxBodySize: "16mb",
+  },
 
   /**
    * Same-origin proxy for the API.
@@ -47,6 +77,12 @@ const nextConfig: NextConfig = {
         source: "/api/:path*",
         destination: `${BACKEND_ORIGIN}/api/:path*`,
       },
+      // `/health` and `/ready` sit at the API's root, not under /api/v1, because load
+      // balancers and uptime checks expect them there. Without these two entries they
+      // are unreachable from the public URL — Next answers its own 404 and the request
+      // never reaches FastAPI at all.
+      { source: "/health", destination: `${BACKEND_ORIGIN}/health` },
+      { source: "/ready", destination: `${BACKEND_ORIGIN}/ready` },
     ];
   },
 };
