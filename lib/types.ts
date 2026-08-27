@@ -44,12 +44,21 @@ export type VaultItem = {
   thumbnail_url: string | null;
   ai_tags: string[];
   ai_category: string | null;
+  /** One distinctive line per memory. Tags are topical and collide; this does not. */
+  ai_label: string | null;
   processing_status: ProcessingStatus;
   created_at: string;
 };
 
 export type VaultItemDetail = VaultItem & {
   content: string | null;
+  /**
+   * Sentences the model copied verbatim out of `content`, for marking in place.
+   *
+   * The backend discards any span that is not actually present in the text, so these are
+   * quotes rather than paraphrases — but the renderer still only marks what it can find.
+   */
+  ai_highlights: string[];
   item_metadata: Record<string, unknown>;
 };
 
@@ -77,4 +86,27 @@ export type InstagramConnectionsResponse = {
   /** False when this deployment has no Meta app configured. */
   available: boolean;
   accounts: InstagramAccount[];
+};
+
+export type TelegramAccount = {
+  telegram_user_id: string;
+  username: string | null;
+  first_name: string | null;
+  linked_at: string;
+};
+
+export type TelegramConnectionResponse = {
+  /** False when this deployment has no bot token configured. */
+  available: boolean;
+  /** Without the @. Null when the bot is not configured. */
+  bot_username: string | null;
+  /** One Telegram account per RecallAI user, or none. */
+  account: TelegramAccount | null;
+};
+
+export type TelegramLinkResponse = {
+  /** Single-use t.me link. Valid for `expires_in` seconds, then dead. */
+  deep_link: string;
+  expires_in: number;
+  expires_at: string;
 };

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { MotionConfig } from "motion/react";
 import { QueryProvider } from "@/components/query-provider";
 import { SessionGuard } from "@/components/session-guard";
-import { Toaster } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CaptureProvider } from "@/components/capture-sheet";
 import { CommandPaletteProvider } from "@/components/command-palette";
@@ -24,23 +24,10 @@ export function Providers({ children }: { children: ReactNode }) {
     <CaptureProvider>
       <CommandPaletteProvider>
         {children}
-        {/* Lifted above the mobile bottom nav so toasts never sit under it. */}
-        <Toaster
-          position="bottom-center"
-          offset={{ bottom: "1.5rem", right: "1.5rem" }}
-          mobileOffset={{ bottom: "5.75rem", left: "1rem", right: "1rem" }}
-          closeButton
-          toastOptions={{
-            classNames: {
-              toast:
-                "rounded-2xl border border-border bg-card text-card-foreground shadow-[0_18px_40px_-18px_oklch(0.18_0.03_280/0.35)]",
-              title: "text-[13.5px] font-semibold leading-snug",
-              description: "text-[12.5px] leading-relaxed text-muted-foreground",
-              actionButton:
-                "rounded-lg bg-transparent px-2 py-1 text-[12px] font-semibold text-primary hover:bg-primary-soft",
-            },
-          }}
-        />
+        {/* Surface and placement live in `components/ui/toast.tsx`. Kept out of here so
+            there is one source of truth — a second config in this file used to override
+            it silently. */}
+        <Toaster />
       </CommandPaletteProvider>
     </CaptureProvider>
     </TooltipProvider>

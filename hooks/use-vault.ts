@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch, apiUpload } from "@/lib/api";
 import { useSession } from "@/hooks/use-auth";
 import { queryKeys } from "@/lib/query-keys";
+import type { EditorBlock } from "@/lib/editor-doc";
 import type { VaultItem, VaultItemDetail, VaultListResponse } from "@/lib/types";
 
 export function useVaultItems({ limit = 20, offset = 0 } = {}) {
@@ -48,6 +49,33 @@ export function useSaveNote() {
     mutationFn: (input: { title: string; content: string }) =>
       apiFetch<VaultItem>("/vault/note", { method: "POST", body: input }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.vault.all }),
+  });
+}
+
+/**
+ * Replace an item's body with what the user wrote in the editor.
+ *
+ * Only the blocks go over the wire: the plain text, the stored document and the
+ * surviving highlights are all derived by the backend, so the browser cannot post a
+ * `content` that disagrees with the document beside it — or reach any other column by
+ * adding it to the body.
+ *
+ * The response is the updated item, so it is written straight into the detail cache
+ * rather than refetched; the list is only invalidated because a card shows the summary,
+ * which the edit does not touch but a later reprocess might.
+ */
+export function useUpdateVaultContent(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (blocks: EditorBlock[]) =>
+      apiFetch<VaultItemDetail>(`/vault/${encodeURIComponent(id)}/content`, {
+        method: "PATCH",
+        body: { blocks },
+      }),
+    onSuccess: (item) => {
+      queryClient.setQueryData(queryKeys.vault.detail(id), item);
+      queryClient.invalidateQueries({ queryKey: queryKeys.vault.all });
+    },
   });
 }
 

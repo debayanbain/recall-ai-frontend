@@ -102,6 +102,7 @@ export function toMemory(item: VaultItem): Memory {
     tags: item.ai_tags.length ? item.ai_tags : ["inbox"],
     savedAt: label,
     savedDays: days,
+    label: item.ai_label?.trim() || undefined,
     cover: item.thumbnail_url ?? undefined,
     accent: ACCENTS[seed % ACCENTS.length],
     height: HEIGHTS[seed % HEIGHTS.length],

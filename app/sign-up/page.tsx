@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AuthShell } from "@/components/auth-shell";
+import { AlreadySignedIn } from "@/components/already-signed-in";
 import { OAuthButtons } from "@/components/oauth-buttons";
 
 export const metadata: Metadata = {
@@ -20,7 +21,9 @@ export default function SignUpPage() {
         </p>
 
         <div className="mt-6">
-          <OAuthButtons next="/vault" />
+          <AlreadySignedIn next="/vault">
+            <OAuthButtons next="/vault" />
+          </AlreadySignedIn>
         </div>
 
         <p className="mt-6 text-[12.5px] leading-relaxed text-muted-foreground">

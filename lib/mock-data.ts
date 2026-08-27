@@ -19,6 +19,8 @@ export interface Memory {
   savedAt: string;
   /** Age in days — used for sorting; savedAt is the human-readable label. */
   savedDays: number;
+  /** The AI's distinctive name for this memory; absent until the worker has enriched it. */
+  label?: string;
   cover?: string;
   accent?: string; // tailwind bg class for accent block
   height?: "sm" | "md" | "lg" | "xl";

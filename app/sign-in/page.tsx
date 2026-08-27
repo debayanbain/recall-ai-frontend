@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AuthShell } from "@/components/auth-shell";
+import { AlreadySignedIn } from "@/components/already-signed-in";
 import { OAuthButtons } from "@/components/oauth-buttons";
 import { oauthErrorMessage } from "@/lib/oauth-errors";
 
@@ -44,7 +45,9 @@ export default async function SignInPage(props: PageProps<"/sign-in">) {
         ) : null}
 
         <div className="mt-6">
-          <OAuthButtons next={safeNext(params.next)} />
+          <AlreadySignedIn next={safeNext(params.next)}>
+            <OAuthButtons next={safeNext(params.next)} />
+          </AlreadySignedIn>
         </div>
 
         <p className="mt-6 text-[12.5px] leading-relaxed text-muted-foreground">

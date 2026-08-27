@@ -13,10 +13,11 @@ import {
   Share2,
   Sparkles,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { MemoryBanner } from "@/components/memory-banner";
 import type { Memory } from "@/lib/mock-data";
 import { kindMeta } from "@/lib/mock-data";
 import { toggleFavorite, useStore } from "@/lib/store";
@@ -78,8 +79,7 @@ export function MemoryCard({ m, compact = false }: { m: Memory; compact?: boolea
           aria-label={m.title}
           className="absolute inset-0 z-10 rounded-[calc(var(--radius)+4px)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         />
-        <div className={`relative ${heightClass} bg-linear-to-br ${m.accent ?? "from-violet-100 to-indigo-50"}`}>
-          <div className="absolute inset-0 grid-dots opacity-60" />
+        <MemoryBanner cover={m.cover} accent={m.accent} alt={m.cover ? m.title : ""} className={heightClass}>
           <Badge
             className={`${badgeReset} absolute left-3.5 top-3.5 gap-1.5 rounded-full border border-white/80 bg-white/80 px-2 py-1 text-[10.5px] font-medium text-foreground/80 backdrop-blur`}
           >
@@ -110,12 +110,30 @@ export function MemoryCard({ m, compact = false }: { m: Memory; compact?: boolea
               <Share2 className="relative size-3.5" />
             </Button>
           </div>
-          <div className="absolute bottom-3 left-3.5 right-3.5 flex items-center gap-2 text-[11px] text-foreground/60">
+          {/* Over a still the accent has faded out by this point, so the source line needs
+              its own ground -- the same white pill the type badge uses, rather than dark
+              text laid straight on someone's photo. */}
+          <div
+            className={`absolute bottom-3 left-3.5 flex max-w-[calc(100%-1.75rem)] items-center gap-2 text-[11px] ${
+              m.cover
+                ? "rounded-full border border-white/80 bg-white/85 px-2 py-1 text-foreground/80 backdrop-blur"
+                : "right-3.5 text-foreground/60"
+            }`}
+          >
             <Icon className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{m.source}</span>
           </div>
-        </div>
+        </MemoryBanner>
         <CardContent className="space-y-2 p-4">
+          {/* The AI's name for this specific memory, above the title on purpose: in a
+              grid where every card is tagged [jobs], this is the line that tells two of
+              them apart. */}
+          {m.label && (
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-brand-accent">
+              <Sparkles className="size-3 shrink-0" aria-hidden />
+              <span className="truncate">{m.label}</span>
+            </div>
+          )}
           <h3 className="text-[14.5px] font-semibold leading-snug tracking-tight">{m.title}</h3>
           {!compact && (
             <p className="line-clamp-2 text-[12.5px] leading-relaxed text-muted-foreground">

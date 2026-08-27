@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Sparkles, Share2, Link2, Eye, Pencil, Download, X, Check } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";

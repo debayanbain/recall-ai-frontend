@@ -42,6 +42,19 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-destructive-fg: var(--destructive-fg);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-fg: var(--success-fg);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-fg: var(--warning-fg);
+  --color-highlight: var(--highlight);
+  --color-highlight-fg: var(--highlight-fg);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-fg: var(--info-fg);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -53,6 +66,7 @@
   --color-primary: var(--primary);
   --color-primary-soft: var(--primary-soft);
   --color-primary-glow: var(--primary-glow);
+  --color-brand-accent: var(--brand-accent);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -83,6 +97,11 @@
   --primary-foreground: oklch(0.99 0.005 290);
   --primary-soft: oklch(0.96 0.03 290);
   --primary-glow: oklch(0.72 0.17 295);
+  /* The brand indigo at a strength that reads as an accent on this theme's surfaces.
+     `--primary` cannot be used for that directly: in dark mode it is a near-white
+     button fill, not a hue, so anything painting the brand colour (the toast's status
+     rail, a brand-tinted control) would come out grey there. */
+  --brand-accent: var(--primary);
 
   --secondary: oklch(0.97 0.012 285);
   --secondary-foreground: oklch(0.22 0.04 280);
@@ -93,8 +112,32 @@
   --accent: oklch(0.955 0.03 290);
   --accent-foreground: oklch(0.32 0.12 285);
 
+  /* Marker for AI-picked key sentences inside extracted content.
+     NOT `--primary-soft`: that is oklch(0.96) against a white card, a 1.09:1
+     difference -- the mark was technically rendered and visually absent, which is
+     indistinguishable from the feature being broken. Amber carries the "highlighted"
+     meaning at a lightness that survives on white, and `-fg` is the on-mark text. */
+  --highlight: oklch(0.915 0.115 96);
+  --highlight-fg: oklch(0.26 0.055 85);
+
   --destructive: oklch(0.6 0.22 25);
   --destructive-foreground: oklch(0.99 0 0);
+
+  /* Status colours. `-fg` is the on-surface text/icon value and is contrast-checked
+     against `-soft`; the base value is for solid fills and accent rules. Defined per
+     theme rather than derived, because a dark surface needs a lighter, less saturated
+     tone to hit the same contrast -- an inverted light value reads as neon. */
+  --success: oklch(0.62 0.15 155);
+  --success-soft: oklch(0.95 0.05 155);
+  --success-fg: oklch(0.42 0.13 155);
+  --warning: oklch(0.75 0.15 75);
+  --warning-soft: oklch(0.96 0.06 80);
+  --warning-fg: oklch(0.48 0.12 70);
+  --info: oklch(0.6 0.14 250);
+  --info-soft: oklch(0.95 0.04 250);
+  --info-fg: oklch(0.45 0.14 255);
+  --destructive-soft: oklch(0.96 0.035 25);
+  --destructive-fg: oklch(0.48 0.19 25);
 
   --border: oklch(0.93 0.01 285);
   --input: oklch(0.93 0.01 285);
@@ -132,14 +175,31 @@
   --primary-foreground: oklch(0.208 0.042 265.755);
   --primary-soft: oklch(0.279 0.041 260.031);
   --primary-glow: oklch(0.627 0.265 303.9);
+  --brand-accent: var(--primary-glow);
   --secondary: oklch(0.279 0.041 260.031);
   --secondary-foreground: oklch(0.984 0.003 247.858);
   --muted: oklch(0.279 0.041 260.031);
   --muted-foreground: oklch(0.704 0.04 256.788);
   --accent: oklch(0.279 0.041 260.031);
   --accent-foreground: oklch(0.984 0.003 247.858);
+  /* Darker and less saturated than the light value: an inverted light amber on a
+     0.208 surface reads as neon and the text on it loses contrast. */
+  --highlight: oklch(0.46 0.10 92);
+  --highlight-fg: oklch(0.97 0.02 90);
+
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.984 0.003 247.858);
+  --success: oklch(0.72 0.15 158);
+  --success-soft: oklch(0.32 0.06 158);
+  --success-fg: oklch(0.84 0.13 158);
+  --warning: oklch(0.8 0.14 80);
+  --warning-soft: oklch(0.34 0.06 75);
+  --warning-fg: oklch(0.88 0.12 85);
+  --info: oklch(0.7 0.13 250);
+  --info-soft: oklch(0.31 0.06 255);
+  --info-fg: oklch(0.85 0.09 250);
+  --destructive-soft: oklch(0.32 0.08 25);
+  --destructive-fg: oklch(0.85 0.11 25);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.551 0.027 264.364);
@@ -238,4 +298,48 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* EditorJS ships its own light-mode chrome and reserves 300px of empty space under the
+   last block. Scoped to `.recall-editor` so nothing here leaks into the rest of the app;
+   the colours are mapped onto the theme tokens so the toolbar and its popovers follow
+   dark mode instead of staying white on a dark page.
+
+   Deliberately NOT overridden: `.ce-block__content` / `.ce-toolbar__content` widths and
+   the container padding. EditorJS positions its block toolbar from those, and forcing
+   them to full width pushes the plus/settings buttons outside the card — which is how
+   the tools became unreachable in the first place. */
+.recall-editor {
+  --color-background: var(--card);
+  --color-text-primary: var(--card-foreground);
+  --color-text-secondary: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-line-gray: var(--border);
+  --color-background-item-hover: var(--secondary);
+  --color-background-item-focus: var(--secondary);
+  --color-shadow-item-focus: transparent;
+}
+
+.recall-editor .codex-editor__redactor {
+  padding-bottom: 3rem !important;
+}
+
+.recall-editor .ce-paragraph,
+.recall-editor .cdx-block {
+  color: var(--foreground);
+}
+
+.recall-editor .ce-popover,
+.recall-editor .ce-inline-toolbar,
+.recall-editor .ce-toolbar__settings-btn,
+.recall-editor .ce-toolbar__plus {
+  background: var(--card);
+  color: var(--card-foreground);
+  border-color: var(--border);
+}
+
+.recall-editor .ce-code__textarea {
+  background: var(--secondary);
+  color: var(--foreground);
+  border-radius: calc(var(--radius) - 4px);
 }

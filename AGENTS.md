@@ -62,6 +62,83 @@ prefs). Both persist with `skipHydration: true` and are rehydrated by `useHydrat
 `Providers` — rehydrating at module scope makes the first client render disagree with the SSR
 HTML and React discards the tree. Never persist ephemeral overlay state (open modals).
 
+**AI label vs tags vs highlights.** `ai_label` is one distinctive line per memory — it answers
+"which one is this" in a grid where every card is tagged `[jobs]`, so it renders as the eyebrow
+above the title on both the card and the detail page. Tags stay topical and are allowed to
+collide. `ai_highlights` are sentences the backend copied **verbatim** out of `content`;
+`components/highlighted-text.tsx` locates each one and wraps it in a real `<mark>` so assistive
+tech announces the emphasis, never `dangerouslySetInnerHTML` — the text is whatever was on
+someone's Facebook post. The matcher is whitespace-tolerant on purpose (it joins the span's
+tokens with `[\s\u200B-\u200D\uFEFF]+`): captions wrap mid-sentence and are padded with
+zero-width characters, so an exact `indexOf` finds nothing on precisely the content this
+feature exists for. A span that still cannot be located is skipped, never approximated —
+a mark in the wrong place reads as the author having said something they did not.
+
+**Editing a memory's body is EditorJS, and it is the one place text goes *back* into the
+DOM.** The Edit button on `/memory/[id]` swaps the Full content block for
+`components/content-editor.tsx`, which mounts EditorJS into a div React never renders
+into (create in an effect, `destroy()` on unmount — it owns that node).
+
+**A saved edit is rendered from the block document, not from `content`.** The API stores
+both: `content` is the flat projection for search and highlights, and
+`item_metadata.editor_doc` carries the structure plus a small allowlist of inline markup
+(`b i u mark code a[href] br`). `components/rich-content.tsx` renders the document and
+`components/rich-text.tsx` renders the inline subset — as React elements built from tag
+names it recognises, never `dangerouslySetInnerHTML`. Rendering `content` instead is
+exactly why a heading someone applied came back looking like an ordinary paragraph.
+`HighlightedText` remains the path for an item nobody has edited.
+
+`lib/editor-doc.ts` is the bridge and it **re-applies the allowlist client-side**
+(`sanitizeInline`) before anything reaches EditorJS, which does set innerHTML. The
+backend sanitizing is not treated as sufficient on its own — `editor_doc` is a JSONB
+column, and the browser has to be the one deciding what it will render. Two carve-outs:
+an item with only plain `content` is escaped instead (a scraped page may contain
+anything), and a `code` block is passed through verbatim, because the tool assigns it to
+a textarea's `.value` and sanitizing would eat the angle brackets that *are* the content.
+On the way out only `blocks` are sent; `content`, the stored document and the surviving
+highlights are all derived by the backend. The Edit button is hidden while
+`processing_status` is `pending`/`processing`: the worker writes `content` when it
+finishes and would overwrite anything typed meanwhile.
+
+Two things about the editor component are load-bearing and both were bugs first:
+
+- **The holder must be visible when EditorJS is constructed.** It measures its container
+  at init to place the block toolbar and to pick its narrow layout; built inside a
+  `display: none` element it measures zero and `.ce-toolbar` stays `display: none` with
+  `top: auto` forever — the tools never appear, so the editor reads as broken and a Save
+  writes the seeded text straight back. The "Loading the editor…" line therefore sits
+  *above* an already-mounted holder instead of replacing it. For the same reason
+  `globals.css` must not override `.ce-block__content` / `.ce-toolbar__content` widths:
+  EditorJS positions the plus/settings buttons from those, and forcing full width pushes
+  them outside the card.
+- **Toolbar buttons must `preventDefault()` on mousedown.** Otherwise the button takes
+  focus, the caret leaves the contenteditable, `blocks.getCurrentBlockIndex()` answers
+  `-1`, and every tool appends an empty block at the end instead of formatting the block
+  the user was in. Because the floating toolbar is unreliable, the formatting controls
+  are a persistent row at the top of the editor rather than EditorJS's hover affordance.
+
+**The banner uses the source's own still when there is one.** `components/memory-banner.tsx`
+backs the block at the top of a memory card and of `/memory/[id]` with `thumbnail_url`
+(a Facebook reel's `og:image`, an Instagram post's `displayUrl`, mapped to `Memory.cover`
+by `lib/vault-adapter.ts`), and lays the memory's accent gradient over it as a wash that
+fades out downward — solid where the type badge and hover actions sit, gone by the bottom
+where the picture is. It is `mask-image` over the accent classes rather than a hardcoded
+overlay colour, so the wash follows whatever accent the item drew. With no still, the
+accent fills the block with the dot texture exactly as before.
+
+Three things there are deliberate:
+
+- **A plain `<img>`, not `next/image`.** These URLs are signed and expiring and the CDN
+  host varies per node (`scontent.fixb5-1.fna.fbcdn.net`), so there is nothing stable to
+  put in a remote pattern and nothing worth caching. `referrerPolicy="no-referrer"` keeps
+  the memory's URL out of the request, and Meta's CDN tends to refuse a referrer anyway.
+- **`onError` is not sufficient on its own.** The markup is server-rendered, so the browser
+  begins fetching before React hydrates and a failure in that window is never replayed onto
+  the handler — which leaves a permanently blank frame. A mount effect reconciles it:
+  `complete && naturalWidth === 0` is an image that already failed.
+- **Only `http(s)` reaches `src`.** `thumbnail_url` comes from a scraped meta tag, so a
+  `javascript:` or `data:` value is treated as "no cover" rather than handed to the browser.
+
 ## Connected accounts (integrations)
 
 Instagram appears in **both** places, and they are different integrations:

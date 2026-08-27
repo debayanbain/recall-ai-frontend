@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/app-shell";
 import { InstagramConnection } from "@/components/instagram-connection";
+import { TelegramConnection } from "@/components/telegram-connection";
 import { instagramErrorMessage } from "@/lib/integration-errors";
 
 export const metadata: Metadata = { title: "Settings · RecallAI" };
@@ -21,6 +22,7 @@ export default async function SettingsPage(props: PageProps<"/settings">) {
     <AppShell title="Settings" subtitle="Connect the accounts RecallAI should pull from.">
       <div className="grid max-w-2xl gap-4 pb-10">
         <InstagramConnection statusMessage={status} />
+        <TelegramConnection />
       </div>
     </AppShell>
   );

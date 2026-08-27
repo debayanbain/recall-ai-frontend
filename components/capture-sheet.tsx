@@ -11,7 +11,7 @@ import {
 import { useRouter } from "next/navigation";
 import { Link2, Mic, StickyNote, Upload, X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

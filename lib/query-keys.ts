@@ -4,6 +4,7 @@ export const queryKeys = {
   providers: ["auth", "providers"] as const,
   integrations: {
     instagram: ["integrations", "instagram"] as const,
+    telegram: ["integrations", "telegram"] as const,
   },
   vault: {
     all: ["vault"] as const,
