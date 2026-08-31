@@ -23,13 +23,12 @@ import {
 } from "@/hooks/use-vault";
 import { ApiError } from "@/lib/api";
 import { useCapture } from "@/components/capture-sheet";
-import { PdfDrop } from "@/components/pdf-drop";
 import { ease, fadeUp, motionVariants, stagger } from "@/lib/motion";
 
 const quickActions = [
   { kind: "link", icon: Link2, label: "Paste link" },
   { kind: "note", icon: StickyNote, label: "Quick note" },
-  { kind: "pdf", icon: Upload, label: "Upload PDF" },
+  { kind: "pdf", icon: Upload, label: "Upload file" },
   { kind: "voice", icon: Mic, label: "Voice note" },
 ] as const;
 
@@ -51,7 +50,6 @@ export function CaptureBar() {
   const statsVariants = motionVariants(reduced, stagger(0.05, 0.1));
   const statVariants = motionVariants(reduced, fadeUp);
 
-  const [pdfOpen, setPdfOpen] = useState(false);
   const vault = useVaultItems({ limit: 20 });
   const saveUrl = useSaveUrl();
   const saveNote = useSaveNote();
@@ -109,7 +107,6 @@ export function CaptureBar() {
 
   return (
     <>
-      <PdfDrop open={pdfOpen} onOpenChange={setPdfOpen} />
       <Card className="mt-6 gap-0 rounded-2xl border border-border bg-white/90 py-0 shadow-[0_24px_60px_-30px_oklch(0.55_0.19_285/0.5)] ring-0 backdrop-blur sm:mt-7">
         <CardContent className="flex flex-col gap-2 p-2 sm:flex-row sm:items-center sm:px-3 sm:py-2">
           <Sparkles className="hidden h-4 w-4 shrink-0 text-primary sm:block" />
@@ -145,7 +142,7 @@ export function CaptureBar() {
             <Button
               key={q.label}
               variant="ghost"
-              onClick={() => (q.kind === "pdf" ? setPdfOpen(true) : capture.open(q.kind))}
+              onClick={() => capture.open(q.kind)}
               className={`${plain} h-10 shrink-0 gap-2 px-3 text-[12.5px] font-medium text-muted-foreground hover:bg-secondary hover:text-foreground sm:h-auto sm:py-1.5`}
             >
               <q.icon className="size-3.5 text-primary" /> {q.label}

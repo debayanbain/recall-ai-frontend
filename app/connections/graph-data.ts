@@ -35,6 +35,7 @@ export const nodeStyle: Record<MemoryKind, { label: string; icon: LucideIcon; to
   video:   { label: "Video",   icon: Play,       tone: "text-rose-500 bg-rose-50" },
   note:    { label: "Note",    icon: StickyNote, tone: "text-amber-600 bg-amber-50" },
   pdf:     { label: "PDF",     icon: FileText,   tone: "text-slate-600 bg-slate-100" },
+  document:{ label: "File",    icon: FileText,   tone: "text-slate-600 bg-slate-100" },
   voice:   { label: "Voice",   icon: Mic,        tone: "text-sky-500 bg-sky-50" },
   image:   { label: "Image",   icon: ImageIcon,  tone: "text-fuchsia-600 bg-fuchsia-50" },
   tweet:   { label: "Tweet",   icon: AtSign,     tone: "text-cyan-600 bg-cyan-50" },

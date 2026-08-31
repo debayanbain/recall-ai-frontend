@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Link2, Mic, StickyNote, Upload, X } from "lucide-react";
+import { Link2, Loader2, Mic, StickyNote, Upload, X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
@@ -25,9 +25,19 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { addMemory, removeMemory } from "@/lib/store";
+import { ApiError } from "@/lib/api";
+import {
+  useDeleteVaultItem,
+  useSaveNote,
+  useSaveUrl,
+  useSaveVoiceNote,
+  useUploadDocument,
+  useUploadLimits,
+} from "@/hooks/use-vault";
+import { VoiceRecorder } from "@/components/voice-recorder";
+import { FilePicker } from "@/components/file-picker";
+import type { VoiceClip } from "@/hooks/use-voice-recorder";
 import { useIsMobile } from "@/hooks/use-mobile";
-import type { MemoryKind } from "@/lib/mock-data";
 import { motionVariants, stagger, fadeUp, transition } from "@/lib/motion";
 
 type CaptureKind = "link" | "note" | "pdf" | "voice";
@@ -35,9 +45,18 @@ type CaptureKind = "link" | "note" | "pdf" | "voice";
 const kinds: { id: CaptureKind; label: string; hint: string; icon: typeof Link2 }[] = [
   { id: "link", label: "Paste link", hint: "Auto-detect & summarize", icon: Link2 },
   { id: "note", label: "Quick note", hint: "Title comes later", icon: StickyNote },
-  { id: "pdf", label: "Upload file", hint: "PDF, image, audio", icon: Upload },
+  { id: "pdf", label: "Upload file", hint: "PDF, image, doc", icon: Upload },
   { id: "voice", label: "Voice note", hint: "Hold to speak", icon: Mic },
 ];
+
+/**
+ * Where the recorder stops itself. Advisory only — the server enforces a size cap, since
+ * duration is not knowable until the audio is decoded. Mirrors MAX_VOICE_NOTE_SECONDS.
+ */
+const MAX_VOICE_SECONDS = 300;
+
+/** `title` is capped at 512 server-side; trim here so a long paste is not rejected. */
+const TITLE_MAX = 512;
 
 const CaptureContext = createContext<{ open: (kind?: CaptureKind) => void } | null>(null);
 
@@ -111,33 +130,167 @@ function CaptureForm({
   DescriptionSlot: typeof SheetDescription;
 }) {
   const [kind, setKind] = useState<CaptureKind>(initialKind);
-  const [title, setTitle] = useState("");
+  const [primary, setPrimary] = useState("");
   const [details, setDetails] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [clip, setClip] = useState<VoiceClip | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  // null means "the user has not chosen", which is not the same as choosing auto-detect
+  // (""). Kept as a separate state rather than seeded into `language` by an effect: the
+  // server default arrives asynchronously, and an effect that writes it in would either
+  // race a choice made while the request was in flight or cascade a render to fix it.
+  const [chosenLanguage, setChosenLanguage] = useState<string | null>(null);
   const router = useRouter();
   const reduced = useReducedMotion();
   const groupVariants = motionVariants(reduced, stagger(0.045));
   const itemVariants = motionVariants(reduced, fadeUp);
 
+  const saveUrl = useSaveUrl();
+  const saveNote = useSaveNote();
+  const saveVoice = useSaveVoiceNote();
+  const upload = useUploadDocument();
+  const remove = useDeleteVaultItem();
+  const limits = useUploadLimits();
+
+  const isLink = kind === "link";
+  const isNote = kind === "note";
+  const isUpload = kind === "pdf";
+  const isVoice = kind === "voice";
+  // Undefined while the limits are in flight — treated as available so the recorder is
+  // not hidden and then flashed in on a deployment where it works.
+  const voiceOff = limits.data?.voice.enabled === false;
+  const voiceLanguages = limits.data?.voice.languages ?? [];
+  const serverDefaultLanguage = limits.data?.voice.default_language ?? "";
+  // A deployment-wide default the user has not overridden, else their choice.
+  const language = chosenLanguage ?? serverDefaultLanguage;
+  const saving =
+    saveUrl.isPending || saveNote.isPending || saveVoice.isPending || upload.isPending;
+
+  // A clip or a file arriving is the user's answer to "record something first", so it
+  // clears the error an empty submit put there.
+  const onClipChange = useCallback((next: VoiceClip | null) => {
+    setClip(next);
+    if (next) setError(null);
+  }, []);
+  const onFileChange = useCallback((next: File | null) => {
+    setFile(next);
+    if (next) setError(null);
+  }, []);
+
+  /**
+   * One landing for every kind: close, confirm, offer an undo.
+   *
+   * The undo is a real delete rather than a local rollback — the row is already in the
+   * vault and, for an upload or a recording, so is the object in the bucket, which
+   * `VaultService.delete` removes along with it.
+   */
+  const landed = (item: { id: string; title: string | null }, fallback: string) => {
+    onDone();
+    toast.success("Saved to your vault", {
+      // Nothing is summarized yet: the worker does that out of band, so say so rather
+      // than showing an empty card and letting the user wonder.
+      description: `${item.title ?? fallback} · Recall is reading it now`,
+      action: { label: "Undo", onClick: () => remove.mutate(item.id) },
+    });
+    router.refresh();
+  };
+
+  /**
+   * The API's own message when it is one a person can act on, generic copy otherwise.
+   *
+   * 4xx is written for humans ("that file type isn't supported", "we couldn't hear
+   * anything"), and so are our 502/503 — "speech-to-text is unavailable", "voice notes
+   * aren't available on this server". A bare 500 is not, and neither is a proxy error.
+   */
+  const failed = (err: unknown, fallback: string) => {
+    const actionable =
+      err instanceof ApiError && (err.status < 500 || err.status === 502 || err.status === 503);
+    setError(actionable ? (err as ApiError).message : fallback);
+  };
+
   const submit = () => {
-    const value = title.trim();
+    if (saving) return;
+    const value = primary.trim();
+
+    if (isVoice) {
+      if (!clip) {
+        setError("Hold the mic button and say something first.");
+        return;
+      }
+      saveVoice.mutate(
+        {
+          blob: clip.blob,
+          title: value || undefined,
+          peaks: clip.peaks,
+          language: language || undefined,
+          duration: clip.seconds,
+        },
+        {
+          onSuccess: (item) => landed(item, "Voice note"),
+          onError: (err) =>
+            failed(err, "Couldn't save that recording. Your audio is still here — try again."),
+        },
+      );
+      return;
+    }
+
+    if (isUpload) {
+      if (!file) {
+        setError("Choose a file to capture.");
+        return;
+      }
+      upload.mutate(file, {
+        onSuccess: (item) => landed(item, file.name),
+        onError: (err) => failed(err, "Upload failed. Check your connection and try again."),
+      });
+      return;
+    }
+
+    if (isLink) {
+      // Validated here as well as by the server's `HttpUrl`: a 422 round trip to learn
+      // that "recall.ai" has no scheme is a slow way to be told to add one.
+      if (!isWebUrl(value)) {
+        setError(
+          value ? "That doesn't look like a link. It needs to start with http:// or https://."
+                : "Paste a link to save.",
+        );
+        return;
+      }
+      saveUrl.mutate(
+        { url: value, title: details.trim() || undefined },
+        {
+          onSuccess: (item) => landed(item, value),
+          onError: (err) =>
+            failed(err, "Couldn't reach the vault. Your link is still here — try again."),
+        },
+      );
+      return;
+    }
+
     if (!value) {
       setError("Give it a few words so Recall can find it later.");
       return;
     }
-    const memory = addMemory({
-      title: value,
-      kind: kind as MemoryKind,
-      summary: details.trim() || undefined,
-      source: kinds.find((k) => k.id === kind)?.label ?? "Quick capture",
-    });
-    onDone();
-    toast.success("Saved to your vault", {
-      description: memory.title,
-      action: { label: "Undo", onClick: () => removeMemory(memory.id) },
-    });
-    router.refresh();
+    saveNote.mutate(
+      // `content` is required server-side and a note with a title and no body is a real
+      // thing someone writes, so the title stands in as the body rather than the save
+      // being refused for a field the form calls optional.
+      { title: value.slice(0, TITLE_MAX), content: details.trim() || value },
+      {
+        onSuccess: (item) => landed(item, value),
+        onError: (err) =>
+          failed(err, "Couldn't reach the vault. Your note is still here — try again."),
+      },
+    );
   };
+
+  // Which fields a kind shows is decided by what the API can actually store for it.
+  // An upload has no title to give and a recording's body is the transcript, so offering
+  // those fields would be offering to write somewhere nothing is read from.
+  const primaryLabel = isLink ? "Link" : "Title";
+  const primaryOptional = isVoice;
+  const showPrimary = !isUpload;
+  const showSecondary = isLink || isNote;
 
   return (
     <>
@@ -166,7 +319,11 @@ function CaptureForm({
 
       <ToggleGroup
         value={[kind]}
-        onValueChange={(next) => next[0] && setKind(next[0] as CaptureKind)}
+        onValueChange={(next) => {
+          if (!next[0]) return;
+          setKind(next[0] as CaptureKind);
+          setError(null);
+        }}
         render={<motion.div variants={groupVariants} initial="hidden" animate="show" />}
         className="mt-4 grid w-full grid-cols-2 gap-2"
       >
@@ -201,69 +358,157 @@ function CaptureForm({
         ))}
       </ToggleGroup>
 
-      <div className="mt-4">
-        <Label
-          htmlFor="capture-input"
-          className="text-[12px] font-medium tracking-normal text-foreground/80 normal-case"
-        >
-          Title
-        </Label>
-        <Input
-          id="capture-input"
-          autoFocus
-          value={title}
-          onChange={(e) => {
-            setTitle(e.target.value);
-            if (error) setError(null);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") submit();
-          }}
-          aria-invalid={Boolean(error)}
-          aria-describedby={error ? "capture-error" : "capture-hint"}
-          placeholder={kind === "link" ? "https://…" : "An idea, a quote, a plan…"}
-          className="mt-1.5 h-11 rounded-xl border border-border bg-secondary/50 px-3 text-[15px] focus-visible:border-primary/40 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-primary/10"
-        />
-        {error ? (
-          <p id="capture-error" role="alert" className="mt-1.5 text-[12px] text-destructive">
-            {error}
-          </p>
+      {isVoice &&
+        (voiceOff ? (
+          <div className="mt-4 rounded-2xl border border-border bg-secondary/40 px-4 py-5 text-center">
+            <p className="text-[13px] font-semibold text-foreground">
+              Voice notes aren&rsquo;t switched on here
+            </p>
+            <p className="mx-auto mt-1 max-w-xs text-[12.5px] leading-relaxed text-muted-foreground">
+              This server has no speech-to-text key configured. Write a quick note instead
+              — it is filed exactly the same way.
+            </p>
+          </div>
         ) : (
-          <p id="capture-hint" className="mt-1.5 text-[12px] text-muted-foreground">
-            No folder needed — Recall tags and connects it for you.
-          </p>
-        )}
-      </div>
+          <VoiceRecorder
+            onClipChange={onClipChange}
+            maxSeconds={limits.data?.voice.max_seconds ?? MAX_VOICE_SECONDS}
+            busy={saveVoice.isPending}
+            language={language}
+            onLanguageChange={setChosenLanguage}
+            languages={voiceLanguages}
+          />
+        ))}
 
-      <div className="mt-3">
-        <Label
-          htmlFor="capture-details"
-          className="text-[12px] font-medium tracking-normal text-foreground/80 normal-case"
-        >
-          Details <span className="font-normal text-muted-foreground">(optional)</span>
-        </Label>
-        <Textarea
-          id="capture-details"
-          value={details}
-          onChange={(e) => setDetails(e.target.value)}
-          rows={3}
-          placeholder="Anything worth keeping alongside it…"
-          className="mt-1.5 min-h-20 rounded-xl border border-border bg-secondary/50 px-3 py-2.5 text-[14px] focus-visible:border-primary/40 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-primary/10"
-        />
-      </div>
+      {isUpload && (
+        <FilePicker file={file} onFileChange={onFileChange} limits={limits.data} busy={saving} />
+      )}
+
+      {showPrimary && (
+        <div className="mt-4">
+          <Label
+            htmlFor="capture-input"
+            className="text-[12px] font-medium tracking-normal text-foreground/80 normal-case"
+          >
+            {primaryLabel}{" "}
+            {primaryOptional && (
+              <span className="font-normal text-muted-foreground">(optional)</span>
+            )}
+          </Label>
+          <Input
+            id="capture-input"
+            // The mic button is the primary control for a voice note; stealing focus into
+            // a text field on open puts the caret where the user is not looking.
+            autoFocus={!isVoice}
+            value={primary}
+            onChange={(e) => {
+              setPrimary(e.target.value);
+              if (error) setError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+            }}
+            // `url` gets the right mobile keyboard and turns off the capitalisation and
+            // autocorrect that mangle a pasted address.
+            type={isLink ? "url" : "text"}
+            inputMode={isLink ? "url" : undefined}
+            autoCapitalize={isLink ? "none" : undefined}
+            autoCorrect={isLink ? "off" : undefined}
+            spellCheck={isLink ? false : undefined}
+            aria-invalid={Boolean(error) && !isVoice}
+            aria-describedby={error && !isVoice ? "capture-error" : "capture-hint"}
+            placeholder={
+              isLink
+                ? "https://…"
+                : isVoice
+                  ? "Name it, or let Recall name it"
+                  : "An idea, a quote, a plan…"
+            }
+            className="mt-1.5 h-11 rounded-xl border border-border bg-secondary/50 px-3 text-[15px] focus-visible:border-primary/40 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-primary/10"
+          />
+          {error && !isVoice && !isUpload ? (
+            <p id="capture-error" role="alert" className="mt-1.5 text-[12px] text-destructive">
+              {error}
+            </p>
+          ) : (
+            <p id="capture-hint" className="mt-1.5 text-[12px] text-muted-foreground">
+              {isVoice
+                ? "Leave it blank and Recall titles it from what you said."
+                : isLink
+                  ? "Recall opens it, reads it and files it — no folder needed."
+                  : "No folder needed — Recall tags and connects it for you."}
+            </p>
+          )}
+        </div>
+      )}
+
+      {showSecondary && (
+        <div className="mt-3">
+          <Label
+            htmlFor="capture-details"
+            className="text-[12px] font-medium tracking-normal text-foreground/80 normal-case"
+          >
+            {isLink ? "Title" : "Details"}{" "}
+            <span className="font-normal text-muted-foreground">(optional)</span>
+          </Label>
+          {isLink ? (
+            // A link's body is whatever the extractor reads from the page, so the only
+            // thing left worth typing is a name for it.
+            <Input
+              id="capture-details"
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submit();
+              }}
+              placeholder="Leave blank to use the page's own title"
+              className="mt-1.5 h-11 rounded-xl border border-border bg-secondary/50 px-3 text-[15px] focus-visible:border-primary/40 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-primary/10"
+            />
+          ) : (
+            <Textarea
+              id="capture-details"
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              rows={3}
+              placeholder="Anything worth keeping alongside it…"
+              className="mt-1.5 min-h-20 rounded-xl border border-border bg-secondary/50 px-3 py-2.5 text-[14px] focus-visible:border-primary/40 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-primary/10"
+            />
+          )}
+        </div>
+      )}
+
+      {/* A voice or upload failure is about the recording or the file, not about a text
+          field, so it sits beside the action it blocks rather than under an input the
+          user may never have touched. */}
+      {(isVoice || isUpload) && error && (
+        <p role="alert" className="mt-3 text-[12px] text-destructive">
+          {error}
+        </p>
+      )}
 
       <div className="mt-4 flex items-center gap-2">
         <Button
           onClick={submit}
-          className="h-11 flex-1 rounded-xl gradient-primary text-[14px] font-semibold tracking-normal text-white normal-case shadow-[0_8px_24px_-10px_oklch(0.55_0.19_285/0.7)] hover:bg-transparent"
+          disabled={saving || (isVoice && voiceOff)}
+          className="h-11 flex-1 gap-1.5 rounded-xl gradient-primary text-[14px] font-semibold tracking-normal text-white normal-case shadow-[0_8px_24px_-10px_oklch(0.55_0.19_285/0.7)] hover:bg-transparent disabled:opacity-60"
         >
-          Remember it
+          {saving ? (
+            <>
+              {/* Named for what is actually happening. The wait for a voice note is the
+                  transcription, not the upload, and a generic "Saving" reads as stuck. */}
+              {saveVoice.isPending ? "Transcribing" : upload.isPending ? "Uploading" : "Saving"}{" "}
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            </>
+          ) : (
+            "Remember it"
+          )}
         </Button>
         <CloseButton
           render={
             <Button
               variant="outline"
-              className="h-11 rounded-xl border-border bg-card px-4 text-[14px] font-medium tracking-normal text-foreground/80 normal-case"
+              disabled={saving}
+              className="h-11 rounded-xl border-border bg-card px-4 text-[14px] font-medium tracking-normal text-foreground/80 normal-case disabled:opacity-60"
             />
           }
         >
@@ -272,4 +517,14 @@ function CaptureForm({
       </div>
     </>
   );
+}
+
+/** Only plain web addresses. The server re-validates with pydantic's `HttpUrl`. */
+function isWebUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }

@@ -3,6 +3,8 @@ export type MemoryKind =
   | "video"
   | "note"
   | "pdf"
+  /** An uploaded file that is not a PDF: docx, xlsx, csv, txt, … */
+  | "document"
   | "voice"
   | "image"
   | "tweet"
@@ -22,6 +24,16 @@ export interface Memory {
   /** The AI's distinctive name for this memory; absent until the worker has enriched it. */
   label?: string;
   cover?: string;
+  /**
+   * The stored file behind this memory, when there is one in the bucket.
+   *
+   * Present for an upload and a voice note, absent for a link or a note. The card reads
+   * it to decide what to show where a scraped still would otherwise go: an uploaded
+   * picture is fetched and becomes the banner itself, and anything else is named on the
+   * banner instead of leaving a coloured block that says nothing about what was saved.
+   * `url` is never part of this -- reaching the bytes is always a fresh mint.
+   */
+  file?: { name: string; mime: string | null; size: number | null };
   accent?: string; // tailwind bg class for accent block
   height?: "sm" | "md" | "lg" | "xl";
   space?: string;
@@ -274,6 +286,7 @@ export const kindMeta: Record<MemoryKind, { label: string; dot: string }> = {
   video: { label: "Video", dot: "bg-rose-500" },
   note: { label: "Note", dot: "bg-amber-500" },
   pdf: { label: "PDF", dot: "bg-slate-500" },
+  document: { label: "File", dot: "bg-slate-400" },
   voice: { label: "Voice", dot: "bg-sky-500" },
   image: { label: "Image", dot: "bg-fuchsia-500" },
   tweet: { label: "Tweet", dot: "bg-cyan-500" },

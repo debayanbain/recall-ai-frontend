@@ -13,6 +13,7 @@ const KIND_BY_TYPE: Record<ContentType, MemoryKind> = {
   youtube: "video",
   article: "article",
   pdf: "pdf",
+  document: "document",
   note: "note",
   instagram: "link",
   facebook: "video",
@@ -104,6 +105,12 @@ export function toMemory(item: VaultItem): Memory {
     savedDays: days,
     label: item.ai_label?.trim() || undefined,
     cover: item.thumbnail_url ?? undefined,
+    // Only when the object is really in the bucket. The backend sets `file_name` at the
+    // point the upload succeeded, so this is the same signal the detail page's Download
+    // button already trusts -- not "this item is of a file-ish type".
+    file: item.file_name
+      ? { name: item.file_name, mime: item.mime_type, size: item.file_size }
+      : undefined,
     accent: ACCENTS[seed % ACCENTS.length],
     height: HEIGHTS[seed % HEIGHTS.length],
     space: item.ai_category ?? undefined,

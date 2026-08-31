@@ -10,5 +10,7 @@ export const queryKeys = {
     all: ["vault"] as const,
     list: (limit: number, offset: number) => ["vault", "list", { limit, offset }] as const,
     detail: (id: string) => ["vault", "detail", id] as const,
+    file: (id: string) => ["vault", "file", id] as const,
+    limits: ["vault", "limits"] as const,
   },
 } as const;

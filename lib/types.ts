@@ -27,6 +27,8 @@ export type ContentType =
   | "youtube"
   | "article"
   | "pdf"
+  /** Any uploaded file that is not a PDF: docx, xlsx, csv, txt, … */
+  | "document"
   | "note"
   | "instagram"
   | "facebook"
@@ -47,7 +49,35 @@ export type VaultItem = {
   /** One distinctive line per memory. Tags are topical and collide; this does not. */
   ai_label: string | null;
   processing_status: ProcessingStatus;
+  /**
+   * Why the pipeline gave up. Scrubbed of anything credential-shaped before it was
+   * stored, so it is safe to show its owner — a provider error carries the whole request
+   * URL, and some of those URLs carry tokens.
+   */
+  processing_error: string | null;
   created_at: string;
+
+  /**
+   * Stored-file metadata. Present only when there is really an object in the bucket, so
+   * these are what the UI reads to decide whether to offer playback and a download.
+   * `storage_key` is deliberately never serialized — the only way to reach a file is
+   * GET /vault/{id}/file, which re-checks ownership and mints a short-lived URL.
+   */
+  file_name: string | null;
+  file_size: number | null;
+  mime_type: string | null;
+};
+
+/**
+ * A presigned download URL. It is a bearer credential until it expires: navigate to it,
+ * never render it as visible text, log it, or persist it.
+ */
+export type FileLinkResponse = {
+  url: string;
+  expires_in: number;
+  file_name: string | null;
+  file_size: number | null;
+  mime_type: string | null;
 };
 
 export type VaultItemDetail = VaultItem & {

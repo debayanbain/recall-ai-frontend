@@ -54,8 +54,42 @@ out is an answer, not a failure.
 shape the cards already speak — the enums differ on purpose (the API discriminates by *source*,
 the UI by *medium*), so the mapping is lossy. `MemoryGrid` takes an optional `items` prop and
 falls back to the local store when it is omitted, which is what spaces/timeline/chat/share
-still use. Capture posts to `/vault/save` or `/vault/note`; a fresh item legitimately has no
-summary until the worker runs, so the adapter supplies status-aware placeholder copy.
+still use. A fresh item legitimately has no summary until the worker runs, so the adapter
+supplies status-aware placeholder copy.
+
+**Every kind in the capture modal reaches the real API**, and which fields a kind shows is
+decided by what the API can store for it — offering a field nothing reads from is offering
+to write into a hole. `link` → `POST /vault/save` (its optional second field is the
+*title*, since the body is whatever the extractor reads); `note` → `/vault/note`, where the
+title stands in as `content` when the details box is empty, because `content` is required
+server-side and a title-only note is a real thing someone writes; `pdf` → `/vault/upload`
+via `components/file-picker.tsx`, whose size cap and extension list come from
+`GET /vault/uploads/limits` rather than a constant that drifts from the backend allowlist;
+`voice` → `/vault/voice`. **There is one upload flow, not two** — the old `PdfDrop` dialog
+was a second one whose copy still promised the file was not stored, which stopped being
+true when uploads started going to B2.
+
+`lib/store.ts`'s `addMemory` is now written to by **nothing** — `/editor` posts to
+`/vault/note` like everything else. Anything calling it is writing to a store the vault
+never sees; the store's remaining job is favourites and the mock feeds that
+spaces/timeline/chat/share still render.
+
+**Anything that shows processing state must poll.** A capture is enriched out of band, so
+`useVaultItems` and `useVaultItem` both refetch while any item is `pending`/`processing`
+and stop the moment it lands. The detail query was missing that and it was the worse
+omission of the two: the list is glanced at, the detail page is *watched* — it showed
+"Queued" and, after a re-transcription, "Transcribing" indefinitely while the worker had
+finished in fifteen seconds. Nothing was wrong on the server and nothing said so.
+
+**A failed capture is a state the page explains, not a card with an empty summary.**
+`components/processing-state.tsx` sits above the AI summary and **renders nothing when
+the item completed** — the retry is an escape hatch from a bad state, not a feature of a
+good one, and a reprocess button on a healthy memory invites spending the whole AI
+pipeline again to replace a result with itself. `pending`/`processing` get a quiet line
+and no button (the server refuses a second request anyway). `failed` and `skipped` get an
+explanation plus `useReprocessItem()`; the stored `processing_error` is shown in a
+collapsed `<details>` and is safe to render because credential-shaped text is stripped
+before it is stored, not at render time.
 
 **Client state → zustand** (`lib/store.ts` for memories, `lib/stores/ui-store.ts` for view
 prefs). Both persist with `skipHydration: true` and are rehydrated by `useHydrateStores()` inside

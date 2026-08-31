@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bold, Code, Italic, List, Mic, Paperclip, Quote, Save, Sparkles } from "lucide-react";
+import { Bold, Code, Italic, List, Loader2, Mic, Paperclip, Quote, Save, Sparkles } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { addMemory } from "@/lib/store";
+import { useSaveNote } from "@/hooks/use-vault";
+import { ApiError } from "@/lib/api";
+
+/** `title` is capped at 512 server-side; trim here so a long line is not rejected. */
+const TITLE_MAX = 512;
 
 const initialBody = `For years I tried to organize my notes into perfect hierarchies. PARA, johnny.decimal, elaborate tagging systems. None of them survived contact with how I actually think.
 
@@ -44,6 +48,7 @@ export function EditorView() {
   const [dirty, setDirty] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
+  const saveNote = useSaveNote();
 
   const applyWrap = (before: string, after: string) => {
     const el = bodyRef.current;
@@ -69,22 +74,43 @@ export function EditorView() {
     toast.success("AI enhanced", { description: "Added a closing takeaway you can edit or delete." });
   };
 
+  /**
+   * Save to the vault, not to the local store.
+   *
+   * `summary` and `tags` are deliberately not sent: the worker writes both from the body
+   * moments later, and seeding them here with the first line and two guessed labels put
+   * text on the card that nobody wrote and the pipeline then overwrote.
+   *
+   * `dirty` is cleared only after the API answers. Clearing it optimistically tells
+   * someone their draft is safe while the request is still in flight, which is the one
+   * moment it is not.
+   */
   const save = () => {
     const value = title.trim();
     if (!value) {
       toast.info("Give the note a title first");
       return;
     }
-    const memory = addMemory({
-      title: value,
-      kind: "note",
-      summary: body.trim().split("\n")[0].slice(0, 160),
-      source: "Smart editor",
-      tags: ["writing", "PKM"],
-    });
-    setDirty(false);
-    toast.success("Note saved", { description: "Opening it in your vault." });
-    router.push(`/memory/${memory.id}`);
+    saveNote.mutate(
+      // `content` is required server-side, and a note with a title and an empty body is
+      // a real thing someone writes, so the title stands in rather than the save failing.
+      { title: value.slice(0, TITLE_MAX), content: body.trim() || value },
+      {
+        onSuccess: (item) => {
+          setDirty(false);
+          toast.success("Note saved", { description: "Opening it in your vault." });
+          router.push(`/memory/${item.id}`);
+        },
+        onError: (err) => {
+          const actionable = err instanceof ApiError && err.status < 500;
+          toast.error("Couldn't save that", {
+            description: actionable
+              ? (err as ApiError).message
+              : "Your draft is still here — try again in a moment.",
+          });
+        },
+      },
+    );
   };
 
   return (
@@ -150,9 +176,18 @@ export function EditorView() {
         </Button>
         <Button
           onClick={save}
-          className={`${plain} h-10 shrink-0 gap-1.5 rounded-lg gradient-primary px-3 text-[12px] font-semibold text-white hover:bg-transparent sm:h-8`}
+          disabled={saveNote.isPending}
+          className={`${plain} h-10 shrink-0 gap-1.5 rounded-lg gradient-primary px-3 text-[12px] font-semibold text-white hover:bg-transparent disabled:opacity-60 sm:h-8`}
         >
-          <Save className="size-3.5" /> Save note
+          {saveNote.isPending ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" aria-hidden /> Saving
+            </>
+          ) : (
+            <>
+              <Save className="size-3.5" aria-hidden /> Save note
+            </>
+          )}
         </Button>
       </div>
 

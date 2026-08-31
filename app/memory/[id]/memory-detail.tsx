@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -16,7 +16,9 @@ import {
   ArrowUpRight,
   AlertTriangle,
   Pencil,
+  Download,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,10 +37,14 @@ import { HighlightedText } from "@/components/highlighted-text";
 import { ContentEditor } from "@/components/content-editor";
 import { RichContent } from "@/components/rich-content";
 import { MemoryBanner } from "@/components/memory-banner";
+import { FilePlaque, useAttachmentCover } from "@/components/attachment-preview";
 import { MemoryCard } from "@/components/memory-card";
+import { VoiceHero, hasAudio } from "@/components/voice-hero";
+import { ProcessingState } from "@/components/processing-state";
+import { TranscriptControls } from "@/components/transcript-controls";
 import { useCapture } from "@/components/capture-sheet";
 import { useSession } from "@/hooks/use-auth";
-import { useDeleteVaultItem, useVaultItem, useVaultItems } from "@/hooks/use-vault";
+import { useDeleteVaultItem, useFileLink, useVaultItem, useVaultItems } from "@/hooks/use-vault";
 import { ApiError } from "@/lib/api";
 import { toMemories, toMemory } from "@/lib/vault-adapter";
 import { storedDocument } from "@/lib/editor-doc";
@@ -47,6 +53,21 @@ import { kindMeta } from "@/lib/mock-data";
 import type { VaultItemDetail } from "@/lib/types";
 
 const plain = "rounded-xl tracking-normal normal-case";
+
+/**
+ * One button in the row under the title.
+ *
+ * Typed rather than inferred from the array literal so `danger` cannot quietly vanish:
+ * the list is built from conditional spreads, and inference over that is fragile enough
+ * that a fifth action added later could change what the callback sees.
+ */
+type DetailAction = {
+  i: LucideIcon;
+  l: string;
+  run: () => void;
+  /** Armed and destructive — the second click of the two-click delete. */
+  danger?: boolean;
+};
 const softCard = "card-soft gap-0 rounded-[calc(var(--radius)+4px)] py-0 shadow-none ring-0";
 
 /**
@@ -67,17 +88,22 @@ function externalHref(url: string | null): string | null {
   }
 }
 
-/** What the body says while the worker has not produced text yet. */
+/**
+ * What the empty body says.
+ *
+ * Deliberately terse for every unfinished state: `ProcessingState` above the summary
+ * already explains what happened and offers the retry, and saying it twice on one page
+ * reads as two different problems.
+ */
 function contentNotice(item: VaultItemDetail): string {
   switch (item.processing_status) {
     case "pending":
-      return "Queued. Recall reads, summarizes and tags this in the background — reopen in a moment.";
     case "processing":
-      return "Reading this now…";
+      return "The text lands here once Recall has read it.";
     case "failed":
-      return "We couldn't read this one. Open the original to check it's still reachable.";
+      return "No text was extracted before processing stopped.";
     case "skipped":
-      return "Stored as-is. There was no readable text to index — the file itself is unchanged.";
+      return "Stored as-is — the file itself is unchanged.";
     default:
       return "No text was extracted from this memory.";
   }
@@ -102,7 +128,19 @@ export function MemoryDetail({ id }: { id: string }) {
   // memory opened to "Memory not found" while the vault list, which does read the API,
   // showed it sitting right there.
   const { data: item, isPending, isError, error, refetch } = useVaultItem(id);
+  // Built here rather than from `toMemory` further down, because hooks cannot live below
+  // the not-found and unauthorized returns. The hook reads nothing else off a memory.
+  const heroFile = item?.file_name
+    ? { name: item.file_name, mime: item.mime_type, size: item.file_size }
+    : undefined;
+  const {
+    ref: heroRef,
+    src: heroUpload,
+    onImageError: onHeroError,
+    resolving: heroResolving,
+  } = useAttachmentCover({ id, file: heroFile });
   const deleteItem = useDeleteVaultItem();
+  const fileLink = useFileLink();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editing, setEditing] = useState(false);
   const [question, setQuestion] = useState("");
@@ -113,6 +151,35 @@ export function MemoryDetail({ id }: { id: string }) {
     () => toMemories((list?.items ?? []).filter((i) => i.id !== id)).slice(0, 3),
     [list, id],
   );
+
+  // Arming the delete is a state the user must be able to leave without committing to it.
+  // A two-click delete whose only exits are "click again" and "leave the page" is a trap:
+  // the button now says something different from every other control on the row, and the
+  // instinct on realising that is to look away -- click anywhere else, or press Escape --
+  // which until now did nothing at all. Both disarm it.
+  //
+  // `pointerdown` in the capture phase rather than `click`: it fires before the click
+  // reaches whatever was actually pressed, so the button is already back to "Delete" by
+  // the time that control runs, and a press that lands *on* the armed button is left
+  // alone. The listener only exists while armed, so nothing is watching the document in
+  // the ordinary case.
+  useEffect(() => {
+    if (!confirmingDelete) return;
+    const disarm = (event: Event) => {
+      const target = event.target as Element | null;
+      if (target?.closest?.("[data-armed-delete]")) return;
+      setConfirmingDelete(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setConfirmingDelete(false);
+    };
+    document.addEventListener("pointerdown", disarm, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", disarm, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [confirmingDelete]);
 
   if (sessionLoading || (isSignedIn && isPending)) {
     return (
@@ -201,6 +268,10 @@ export function MemoryDetail({ id }: { id: string }) {
   }
 
   const memory = toMemory(item);
+  const heroCover = memory.cover ?? heroUpload;
+  // The audio branch below owns every item that has a recording, so this only ever names
+  // a document, a spreadsheet or an image this browser cannot decode.
+  const heroPlaque = !heroCover && !heroResolving ? memory.file : undefined;
   const meta = kindMeta[memory.kind];
   const favorited = favorites.includes(memory.id);
   const href = externalHref(item.source_url);
@@ -209,14 +280,37 @@ export function MemoryDetail({ id }: { id: string }) {
   // Present once someone has edited by hand. `content` stays the flat projection the
   // search and the embedding are built from, but rendering *that* is what made an
   // applied heading come back looking like a paragraph — so the document wins here.
-  const document = storedDocument(item);
+  const editorDoc = storedDocument(item);
   // Hidden while the worker still owns this item: it writes `content` from the
   // extraction when it finishes, so anything typed in the meantime would be overwritten
   // without a word.
   const editable =
     item.processing_status !== "pending" && item.processing_status !== "processing";
 
-  const actions = [
+  const actions: DetailAction[] = [
+    ...(item.file_name
+      ? [
+          {
+            i: Download,
+            l: fileLink.isPending ? "Preparing…" : "Download",
+            run: () => {
+              // The URL is minted per click and expires in minutes, so it is never held
+              // in state, rendered as text, or copied anywhere. The bucket forces
+              // `Content-Disposition: attachment`, which is what makes assigning
+              // `location` a download rather than a navigation away from this page.
+              fileLink.mutate(item.id, {
+                onSuccess: (file) => {
+                  window.location.href = file.url;
+                },
+                onError: () =>
+                  toast.error("Couldn't prepare that download", {
+                    description: "The file is still there — try again in a moment.",
+                  }),
+              });
+            },
+          },
+        ]
+      : []),
     ...(href
       ? [
           {
@@ -252,6 +346,12 @@ export function MemoryDetail({ id }: { id: string }) {
       // Two clicks rather than a browser confirm: deleting is the one action here that
       // cannot be undone, and the label says exactly what the second click does.
       l: confirmingDelete ? "Confirm delete" : "Delete",
+      // Armed, so it stops looking like its four neighbours. The label already changed,
+      // which is what carries the meaning for anyone who cannot see the colour -- red on
+      // its own would be exactly the "colour as the only signal" failure. This is the
+      // second cue, not the first, and it is the one that catches the eye already moving
+      // toward a second click.
+      danger: confirmingDelete,
       run: () => {
         if (!confirmingDelete) {
           setConfirmingDelete(true);
@@ -270,6 +370,13 @@ export function MemoryDetail({ id }: { id: string }) {
       },
     },
   ];
+
+  const typeBadge = (
+    <Badge className="absolute left-4 top-4 z-10 max-w-[calc(100%-2rem)] gap-2 rounded-full border border-white/80 bg-white/85 px-3 py-1.5 text-[12px] font-medium tracking-normal normal-case backdrop-blur sm:left-6 sm:top-6">
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} /> {meta.label}
+      <span className="truncate text-muted-foreground">· {memory.source}</span>
+    </Badge>
+  );
 
   return (
     <>
@@ -292,18 +399,30 @@ export function MemoryDetail({ id }: { id: string }) {
       </Breadcrumb>
 
       <div className="grid grid-cols-1 gap-7 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-8">
-        <article className="min-w-0">
-          <MemoryBanner
-            cover={memory.cover}
-            accent={memory.accent}
-            alt={memory.cover ? memory.title : ""}
-            className="h-44 rounded-[24px] border border-border sm:h-60 sm:rounded-[28px] md:h-72"
-          >
-            <Badge className="absolute left-4 top-4 max-w-[calc(100%-2rem)] gap-2 rounded-full border border-white/80 bg-white/85 px-3 py-1.5 text-[12px] font-medium tracking-normal normal-case backdrop-blur sm:left-6 sm:top-6">
-              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} /> {meta.label}
-              <span className="truncate text-muted-foreground">· {memory.source}</span>
-            </Badge>
-          </MemoryBanner>
+        <article ref={heroRef} className="min-w-0">
+          {/* For every other kind the banner is decoration over content further down the
+              page. For a recording it IS the content -- the transcript below is a reading
+              of it -- so the top of the page is the player. */}
+          {hasAudio(item) ? (
+            <VoiceHero
+              item={item}
+              accent={memory.accent}
+              className="h-44 rounded-[24px] border border-border sm:h-60 sm:rounded-[28px] md:h-72"
+            >
+              {typeBadge}
+            </VoiceHero>
+          ) : (
+            <MemoryBanner
+              cover={heroCover}
+              accent={memory.accent}
+              alt={heroCover ? memory.title : ""}
+              onImageError={onHeroError}
+              className="h-44 rounded-[24px] border border-border sm:h-60 sm:rounded-[28px] md:h-72"
+            >
+              {heroPlaque && <FilePlaque file={heroPlaque} />}
+              {typeBadge}
+            </MemoryBanner>
+          )}
 
           <div className="mt-6 flex flex-col gap-4 sm:mt-7">
             <div className="min-w-0">
@@ -338,13 +457,27 @@ export function MemoryDetail({ id }: { id: string }) {
                   variant="outline"
                   onClick={a.run}
                   disabled={deleteItem.isPending}
-                  className={`${plain} h-10 shrink-0 gap-1.5 border-border bg-card px-3 text-[12.5px] font-medium text-foreground/80 hover:bg-secondary`}
+                  // Read by the document-level listener above. An attribute rather than a
+                  // ref because the row is built from a list: the armed button is whichever
+                  // one currently carries this, with nothing to keep in sync.
+                  {...(a.danger ? { "data-armed-delete": "" } : {})}
+                  className={`${plain} h-10 shrink-0 gap-1.5 px-3 text-[12.5px] font-medium transition-colors ${
+                    a.danger
+                      ? "border-destructive bg-destructive text-white hover:border-destructive hover:bg-destructive/90 hover:text-white"
+                      : "border-border bg-card text-foreground/80 hover:bg-secondary"
+                  }`}
                 >
                   <a.i className="size-3.5" /> {a.l}
                 </Button>
               ))}
             </div>
           </div>
+
+          <ProcessingState item={item} />
+
+          {/* Only for a voice note with its audio still stored: a transcript is the one
+              output that can be fluently wrong, and this is the only way back from it. */}
+          {hasAudio(item) && <TranscriptControls item={item} />}
 
           <Card className={`${softCard} mt-6 sm:mt-7`}>
             <CardContent className="p-5 sm:p-6">
@@ -377,7 +510,7 @@ export function MemoryDetail({ id }: { id: string }) {
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <h2 className="font-display text-[22px] sm:text-[24px]">Full content</h2>
               <div className="flex flex-wrap items-center gap-3">
-                {(item.content || document) && highlights.length > 0 && !editing && (
+                {(item.content || editorDoc) && highlights.length > 0 && !editing && (
                   // Says why parts of the text are tinted. Without it the marks read as a
                   // rendering artefact rather than as the model pointing at something.
                   <span className="text-[12.5px] text-muted-foreground">
@@ -391,7 +524,7 @@ export function MemoryDetail({ id }: { id: string }) {
                     className={`${plain} h-10 shrink-0 gap-1.5 border-border bg-card px-3 text-[12.5px] font-medium text-foreground/80 hover:bg-secondary`}
                   >
                     <Pencil className="size-3.5" aria-hidden />
-                    {item.content || document ? "Edit" : "Add content"}
+                    {item.content || editorDoc ? "Edit" : "Add content"}
                   </Button>
                 )}
               </div>
@@ -400,20 +533,32 @@ export function MemoryDetail({ id }: { id: string }) {
               // Unmounted on close, so reopening always re-seeds from what the cache
               // holds after the save rather than from a stale editor instance.
               <ContentEditor item={item} onClose={() => setEditing(false)} />
-            ) : document ? (
+            ) : editorDoc ? (
               <RichContent
-                blocks={document}
+                blocks={editorDoc}
                 spans={highlights}
                 className="text-[15px] leading-relaxed text-foreground/85 sm:text-[16px]"
               />
             ) : item.content ? (
-              // whitespace-pre-wrap keeps the extracted line breaks. Rendered as text
-              // nodes, never as HTML -- this is third-party content off the open web.
-              <HighlightedText
-                text={item.content}
-                spans={highlights}
-                className="text-[15px] leading-relaxed text-foreground/85 sm:text-[16px]"
-              />
+              <>
+                {item.item_metadata.content_source === "vision" && (
+                  // The body of an image memory is a model's description of it. Saying so
+                  // is not a disclaimer -- rendering it identically to text the user wrote
+                  // is the one way this feature can lie.
+                  <p className="mb-2 flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+                    <Sparkles className="size-3.5 shrink-0 text-primary" aria-hidden />
+                    Recall described this image — the words below are its reading, not the
+                    image&rsquo;s own text.
+                  </p>
+                )}
+                {/* whitespace-pre-wrap keeps the extracted line breaks. Rendered as text
+                    nodes, never as HTML -- this is third-party content off the open web. */}
+                <HighlightedText
+                  text={item.content}
+                  spans={highlights}
+                  className="text-[15px] leading-relaxed text-foreground/85 sm:text-[16px]"
+                />
+              </>
             ) : (
               <p className="rounded-2xl border border-dashed border-border bg-secondary/30 p-4 text-[13.5px] leading-relaxed text-muted-foreground">
                 {contentNotice(item)}

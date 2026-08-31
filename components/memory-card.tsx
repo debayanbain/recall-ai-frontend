@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   FileText,
@@ -18,15 +19,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MemoryBanner } from "@/components/memory-banner";
-import type { Memory } from "@/lib/mock-data";
+import { FilePlaque, useAttachmentCover } from "@/components/attachment-preview";
+import type { LucideIcon } from "lucide-react";
+import type { Memory, MemoryKind } from "@/lib/mock-data";
 import { kindMeta } from "@/lib/mock-data";
 import { toggleFavorite, useStore } from "@/lib/store";
 
-const kindIcon = {
+const kindIcon: Record<MemoryKind, LucideIcon> = {
   article: LinkIcon,
   video: Play,
   note: StickyNote,
   pdf: FileText,
+  document: FileText,
   voice: Mic,
   image: ImageIcon,
   tweet: LinkIcon,
@@ -61,6 +65,16 @@ export function MemoryCard({ m, compact = false }: { m: Memory; compact?: boolea
   const { favorites } = useStore();
   const favorited = favorites.includes(m.id);
 
+  // An uploaded picture becomes the banner, exactly like a scraped still: same wash, same
+  // fallback, same pill treatment for the badges over it. A scraped still still wins where
+  // there is one -- it is already loaded and costs nothing to keep.
+  const { ref: viewRef, src: uploadCover, onImageError, resolving } = useAttachmentCover(m);
+  const cover = m.cover ?? uploadCover;
+  // Nothing to draw and something to name. Voice notes are excluded: their filename is
+  // one this server invented, so a plaque reading "voice-note.webm" tells its owner less
+  // than the Voice badge already sitting in the corner.
+  const plaque = !cover && !resolving && m.kind !== "voice" ? m.file : undefined;
+
   const heightClass = compact
     ? "h-28 sm:h-32"
     : m.height === "lg"
@@ -70,7 +84,7 @@ export function MemoryCard({ m, compact = false }: { m: Memory; compact?: boolea
         : "h-28";
 
   return (
-    <div className="group block break-inside-avoid">
+    <div ref={viewRef} className="group block break-inside-avoid">
       <Card className={`card-soft card-lift relative overflow-hidden ${cardReset}`}>
         {/* Full-card navigation target. Kept as a sibling overlay so the hover
             actions below stay real buttons instead of nested inside an <a>. */}
@@ -79,7 +93,14 @@ export function MemoryCard({ m, compact = false }: { m: Memory; compact?: boolea
           aria-label={m.title}
           className="absolute inset-0 z-10 rounded-[calc(var(--radius)+4px)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         />
-        <MemoryBanner cover={m.cover} accent={m.accent} alt={m.cover ? m.title : ""} className={heightClass}>
+        <MemoryBanner
+          cover={cover}
+          accent={m.accent}
+          alt={cover ? m.title : ""}
+          onImageError={onImageError}
+          className={heightClass}
+        >
+          {plaque && <FilePlaque file={plaque} />}
           <Badge
             className={`${badgeReset} absolute left-3.5 top-3.5 gap-1.5 rounded-full border border-white/80 bg-white/80 px-2 py-1 text-[10.5px] font-medium text-foreground/80 backdrop-blur`}
           >
@@ -115,7 +136,7 @@ export function MemoryCard({ m, compact = false }: { m: Memory; compact?: boolea
               text laid straight on someone's photo. */}
           <div
             className={`absolute bottom-3 left-3.5 flex max-w-[calc(100%-1.75rem)] items-center gap-2 text-[11px] ${
-              m.cover
+              cover
                 ? "rounded-full border border-white/80 bg-white/85 px-2 py-1 text-foreground/80 backdrop-blur"
                 : "right-3.5 text-foreground/60"
             }`}
@@ -165,9 +186,20 @@ export function MemoryRow({ m }: { m: Memory }) {
   const meta = kindMeta[m.kind];
   const { favorites } = useStore();
   const favorited = favorites.includes(m.id);
+  // The list view gets the same picture the card does, at thumbnail size. A row is what
+  // someone scans when they already half-know what they are looking for, which is exactly
+  // when a photo beats a generic icon.
+  const { ref: viewRef, src: uploadCover, onImageError } = useAttachmentCover(m);
+  // A dead thumbnail falls back to the kind icon rather than to the browser's broken-image
+  // glyph. Keyed by the URL that failed, so a re-mint of an expired link -- the common
+  // case -- is drawn rather than discarded by a latch nobody cleared.
+  const [failedThumb, setFailedThumb] = useState<string | null>(null);
+  const candidate = m.cover ?? uploadCover;
+  const thumb = candidate && candidate !== failedThumb ? candidate : undefined;
 
   return (
     <Card
+      ref={viewRef}
       className={`${cardReset} group relative flex-row items-center gap-3 rounded-2xl border border-border p-3 transition-colors hover:border-primary/25 sm:gap-4 sm:p-3.5`}
     >
       <Link
@@ -175,8 +207,28 @@ export function MemoryRow({ m }: { m: Memory }) {
         aria-label={m.title}
         className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       />
-      <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-linear-to-br sm:h-14 sm:w-14 ${m.accent}`}>
-        <Icon className="h-4 w-4 text-foreground/50" />
+      <div
+        className={`relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-linear-to-br sm:h-14 sm:w-14 ${m.accent}`}
+      >
+        {thumb ? (
+          /* eslint-disable-next-line @next/next/no-img-element -- same reason as the
+             banner: a signed, expiring URL on a host that varies, so there is nothing for
+             next/image to cache or to configure a remote pattern against. */
+          <img
+            src={thumb}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={() => {
+              setFailedThumb(candidate ?? null);
+              onImageError();
+            }}
+            className="absolute inset-0 size-full object-cover"
+          />
+        ) : (
+          <Icon className="h-4 w-4 text-foreground/50" />
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
