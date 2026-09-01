@@ -7,7 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppShell } from "@/components/app-shell";
 import { useSpace } from "@/hooks/use-spaces";
-import { emojiFor, gradientFor } from "@/lib/space-accent";
+import { SpaceGlyph } from "@/components/space-icon";
+import { gradientFor } from "@/lib/space-accent";
 import { ShareButton } from "./share-button";
 import { SpaceTabs } from "./space-tabs";
 
@@ -21,7 +22,11 @@ const plain = "rounded-xl tracking-normal normal-case";
  * version called `generateStaticParams` over the six mock ids, which would 404 every real
  * Space the moment the data became real.
  */
-export function SpaceDetailView({ params }: { params: Promise<{ id: string }> }) {
+export function SpaceDetailView({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
   const { data: space, isLoading, isError, refetch } = useSpace(id);
 
@@ -29,7 +34,10 @@ export function SpaceDetailView({ params }: { params: Promise<{ id: string }> })
     return (
       <AppShell>
         {/* Same footprint as the hero, so the page does not jump when it lands. */}
-        <Skeleton aria-label="Loading space" className="h-64 w-full rounded-[24px] sm:rounded-[28px] md:h-72" />
+        <Skeleton
+          aria-label="Loading space"
+          className="h-64 w-full rounded-[24px] sm:rounded-[28px] md:h-72"
+        />
         <Skeleton className="mt-6 h-10 w-full max-w-md rounded-xl" />
         <Skeleton className="mt-6 h-48 w-full rounded-[calc(var(--radius)+4px)]" />
       </AppShell>
@@ -71,8 +79,10 @@ export function SpaceDetailView({ params }: { params: Promise<{ id: string }> })
         <div className="relative flex flex-col gap-5 p-6 sm:p-8 md:flex-row md:items-end md:justify-between md:gap-6 md:p-12">
           <div className="min-w-0">
             <div className="inline-flex items-center gap-1.5 rounded-full bg-white/85 px-3 py-1 text-[11.5px] font-medium text-primary backdrop-blur">
-              <span aria-hidden>{emojiFor(space)}</span>{" "}
-              {space.role === "owner" ? "Space · curated by you" : `Space · you're an ${space.role}`}
+              <SpaceGlyph space={space} />{" "}
+              {space.role === "owner"
+                ? "Space · curated by you"
+                : `Space · you're an ${space.role}`}
             </div>
             <h1 className="mt-4 font-display text-[32px] leading-[1.05] tracking-tight sm:text-[44px] md:text-[64px]">
               {space.name}
@@ -84,7 +94,8 @@ export function SpaceDetailView({ params }: { params: Promise<{ id: string }> })
             )}
             <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] text-foreground/70">
               <span className="tabular-nums">
-                {space.memory_count} {space.memory_count === 1 ? "memory" : "memories"}
+                {space.memory_count}{" "}
+                {space.memory_count === 1 ? "memory" : "memories"}
               </span>
               {/* Connections and collaborators appear only when there is something true
                   to say. A hardcoded "3 collaborators" was the tell that this page was a
@@ -92,7 +103,9 @@ export function SpaceDetailView({ params }: { params: Promise<{ id: string }> })
               {space.connection_count !== null && (
                 <>
                   <span aria-hidden="true">·</span>
-                  <span className="tabular-nums">{space.connection_count} connections</span>
+                  <span className="tabular-nums">
+                    {space.connection_count} connections
+                  </span>
                 </>
               )}
               {others > 0 && (

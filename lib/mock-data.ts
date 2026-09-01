@@ -1,3 +1,5 @@
+import { memoryGradient } from "@/lib/memory-accent";
+
 export type MemoryKind =
   | "article"
   | "video"
@@ -34,7 +36,8 @@ export interface Memory {
    * `url` is never part of this -- reaching the bytes is always a fresh mint.
    */
   file?: { name: string; mime: string | null; size: number | null };
-  accent?: string; // tailwind bg class for accent block
+  /** A CSS `background-image` from `lib/memory-accent` — never a Tailwind class. */
+  accent?: string;
   height?: "sm" | "md" | "lg" | "xl";
   space?: string;
 }
@@ -50,7 +53,7 @@ export const memories: Memory[] = [
     tags: ["productivity", "PKM", "method"],
     savedAt: "2 days ago",
     savedDays: 2,
-    accent: "from-violet-100 to-indigo-50",
+    accent: memoryGradient("second-brain"),
     height: "lg",
     space: "Learning AI",
   },
@@ -64,7 +67,7 @@ export const memories: Memory[] = [
     tags: ["startup", "validation"],
     savedAt: "Yesterday",
     savedDays: 1,
-    accent: "from-rose-100 to-orange-50",
+    accent: memoryGradient("validate-saas"),
     height: "md",
     space: "Startup Ideas",
   },
@@ -78,7 +81,7 @@ export const memories: Memory[] = [
     tags: ["startup", "lean", "book"],
     savedAt: "3 days ago",
     savedDays: 3,
-    accent: "from-emerald-100 to-teal-50",
+    accent: memoryGradient("lean-startup"),
     height: "sm",
     space: "Startup Ideas",
   },
@@ -92,7 +95,7 @@ export const memories: Memory[] = [
     tags: ["idea", "spaces", "recipes"],
     savedAt: "Today",
     savedDays: 0,
-    accent: "from-amber-100 to-yellow-50",
+    accent: memoryGradient("family-recipes"),
     height: "sm",
     space: "Building RecallAI",
   },
@@ -106,7 +109,7 @@ export const memories: Memory[] = [
     tags: ["meeting", "partnerships"],
     savedAt: "Today",
     savedDays: 0,
-    accent: "from-sky-100 to-cyan-50",
+    accent: memoryGradient("alex-meeting"),
     height: "md",
     space: "Building RecallAI",
   },
@@ -120,7 +123,7 @@ export const memories: Memory[] = [
     tags: ["routine", "health"],
     savedAt: "5 days ago",
     savedDays: 5,
-    accent: "from-lime-100 to-emerald-50",
+    accent: memoryGradient("nomad-routine"),
     height: "sm",
     space: "Health Journey",
   },
@@ -134,7 +137,7 @@ export const memories: Memory[] = [
     tags: ["ideas", "planning"],
     savedAt: "1 week ago",
     savedDays: 7,
-    accent: "from-fuchsia-100 to-pink-50",
+    accent: memoryGradient("business-plan"),
     height: "md",
     space: "Startup Ideas",
   },
@@ -148,7 +151,7 @@ export const memories: Memory[] = [
     tags: ["design", "UX"],
     savedAt: "4 days ago",
     savedDays: 4,
-    accent: "from-slate-100 to-zinc-50",
+    accent: memoryGradient("user-journey-pdf"),
     height: "sm",
     space: "Building RecallAI",
   },
@@ -162,7 +165,7 @@ export const memories: Memory[] = [
     tags: ["zettelkasten", "writing"],
     savedAt: "2 weeks ago",
     savedDays: 14,
-    accent: "from-indigo-100 to-blue-50",
+    accent: memoryGradient("smart-notes"),
     height: "lg",
     space: "Learning AI",
   },
@@ -170,12 +173,13 @@ export const memories: Memory[] = [
     id: "para",
     kind: "article",
     title: "PARA Method Explained",
-    summary: "Projects, Areas, Resources, Archives — a universal system for organizing.",
+    summary:
+      "Projects, Areas, Resources, Archives — a universal system for organizing.",
     source: "fortelabs.com",
     tags: ["PKM", "method"],
     savedAt: "2 weeks ago",
     savedDays: 14,
-    accent: "from-violet-100 to-purple-50",
+    accent: memoryGradient("para"),
     height: "md",
     space: "Learning AI",
   },
@@ -183,12 +187,13 @@ export const memories: Memory[] = [
     id: "kyoto-itinerary",
     kind: "link",
     title: "Kyoto 5-day slow itinerary",
-    summary: "Northern Higashiyama, Arashiyama bamboo at dawn, evening in Pontocho.",
+    summary:
+      "Northern Higashiyama, Arashiyama bamboo at dawn, evening in Pontocho.",
     source: "tokyocheapo.com",
     tags: ["travel", "japan"],
     savedAt: "1 month ago",
     savedDays: 30,
-    accent: "from-rose-100 to-pink-50",
+    accent: memoryGradient("kyoto-itinerary"),
     height: "sm",
     space: "Japan Trip",
   },
@@ -202,7 +207,7 @@ export const memories: Memory[] = [
     tags: ["python", "fastapi"],
     savedAt: "3 weeks ago",
     savedDays: 21,
-    accent: "from-teal-100 to-emerald-50",
+    accent: memoryGradient("fastapi-deep"),
     height: "md",
     space: "Learning AI",
   },
@@ -244,7 +249,8 @@ export const spaces: SpaceData[] = [
     id: "startup-ideas",
     title: "Startup Ideas",
     emoji: "◉",
-    summary: "A garden of half-formed ideas, validations, market notes and competitor teardowns.",
+    summary:
+      "A garden of half-formed ideas, validations, market notes and competitor teardowns.",
     memoryCount: 56,
     connectionCount: 91,
     gradient: "from-rose-200 via-orange-100 to-amber-50",
@@ -254,7 +260,8 @@ export const spaces: SpaceData[] = [
     id: "japan-trip",
     title: "Japan Trip",
     emoji: "⛩",
-    summary: "Two weeks in autumn — itineraries, tea houses, ryokans, and a slow Kyoto plan.",
+    summary:
+      "Two weeks in autumn — itineraries, tea houses, ryokans, and a slow Kyoto plan.",
     memoryCount: 38,
     connectionCount: 22,
     gradient: "from-pink-200 via-rose-100 to-red-50",
@@ -264,7 +271,8 @@ export const spaces: SpaceData[] = [
     id: "learning-ai",
     title: "Learning AI",
     emoji: "◐",
-    summary: "Papers, talks, repos and quick experiments. From transformers to agents.",
+    summary:
+      "Papers, talks, repos and quick experiments. From transformers to agents.",
     memoryCount: 127,
     connectionCount: 248,
     gradient: "from-indigo-200 via-blue-100 to-sky-50",
@@ -274,7 +282,8 @@ export const spaces: SpaceData[] = [
     id: "health-journey",
     title: "Health Journey",
     emoji: "❋",
-    summary: "Training plans, recovery notes, recipes and what's actually working this season.",
+    summary:
+      "Training plans, recovery notes, recipes and what's actually working this season.",
     memoryCount: 41,
     connectionCount: 33,
     gradient: "from-emerald-200 via-teal-100 to-green-50",

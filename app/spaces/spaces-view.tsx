@@ -9,7 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AppShell } from "@/components/app-shell";
 import { useSpaces } from "@/hooks/use-spaces";
 import { useAddToSpaceSheet } from "@/components/add-to-space";
-import { emojiFor, gradientFor } from "@/lib/space-accent";
+import { SpaceGlyph } from "@/components/space-icon";
+import { gradientFor } from "@/lib/space-accent";
 import type { Space } from "@/lib/types";
 
 /** Undoes the base-sera Button defaults (square, uppercase, wide tracking). */
@@ -40,7 +41,10 @@ export function SpacesView() {
           className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3"
         >
           {[0, 1, 2, 3, 4, 5].map((i) => (
-            <Skeleton key={i} className="h-64 w-full rounded-[calc(var(--radius)+4px)]" />
+            <Skeleton
+              key={i}
+              className="h-64 w-full rounded-[calc(var(--radius)+4px)]"
+            />
           ))}
         </div>
       ) : isError ? (
@@ -67,10 +71,12 @@ export function SpacesView() {
             <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-primary-soft text-primary">
               <Sparkles className="h-5 w-5" />
             </div>
-            <h2 className="mt-4 font-display text-[22px] tracking-tight">No spaces yet</h2>
+            <h2 className="mt-4 font-display text-[22px] tracking-tight">
+              No spaces yet
+            </h2>
             <p className="mx-auto mt-1.5 max-w-md text-[13px] leading-relaxed text-muted-foreground">
-              A space is a context, not a folder — pick a few related memories in your vault
-              and Recall will suggest one for you.
+              A space is a context, not a folder — pick a few related memories
+              in your vault and Recall will suggest one for you.
             </p>
             <Button
               onClick={() => sheet.open()}
@@ -104,10 +110,12 @@ function SpaceCard({ space }: { space: Space }) {
         href={`/spaces/${space.id}`}
         className="block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
-        <div className={`relative h-32 bg-linear-to-br sm:h-36 ${gradientFor(space)}`}>
+        <div
+          className={`relative h-32 bg-linear-to-br sm:h-36 ${gradientFor(space)}`}
+        >
           <div className="absolute inset-0 grid-dots opacity-50" />
           <div className="absolute left-5 top-5 grid h-12 w-12 place-items-center rounded-2xl bg-white/85 text-[22px] text-primary shadow-sm backdrop-blur">
-            {emojiFor(space)}
+            <SpaceGlyph space={space} />
           </div>
           {space.pinned && (
             <Badge className="absolute right-4 top-4 rounded-full bg-white/85 px-2 py-0.5 text-[10.5px] font-medium tracking-normal text-primary normal-case backdrop-blur">
@@ -117,12 +125,16 @@ function SpaceCard({ space }: { space: Space }) {
         </div>
         <CardContent className="p-4 sm:p-5">
           <div className="flex items-start justify-between gap-3">
-            <h3 className="text-[18px] font-semibold tracking-tight">{space.name}</h3>
+            <h3 className="text-[18px] font-semibold tracking-tight">
+              {space.name}
+            </h3>
             <div className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
               {space.memory_count}
               {/* Only when it has actually been computed. Null means "never measured",
                   and printing 0 for that is a claim about the space that is not true. */}
-              {space.connection_count !== null && <> · {space.connection_count}↔</>}
+              {space.connection_count !== null && (
+                <> · {space.connection_count}↔</>
+              )}
             </div>
           </div>
           <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">

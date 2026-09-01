@@ -42,7 +42,9 @@ export function useSpace(id: string | undefined) {
     // the same reason the vault list polls. Stops the moment everything has landed.
     refetchInterval: (query) =>
       query.state.data?.items.some(
-        (i) => i.processing_status === "pending" || i.processing_status === "processing",
+        (i) =>
+          i.processing_status === "pending" ||
+          i.processing_status === "processing",
       )
         ? 5_000
         : false,
@@ -53,7 +55,8 @@ export function useSpace(id: string | undefined) {
 export function useSpacesForItem(itemId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: queryKeys.spaces.forItem(itemId ?? ""),
-    queryFn: () => apiFetch<string[]>(`/spaces/for-item/${encodeURIComponent(itemId!)}`),
+    queryFn: () =>
+      apiFetch<string[]>(`/spaces/for-item/${encodeURIComponent(itemId!)}`),
     enabled: Boolean(itemId) && enabled,
   });
 }
@@ -62,6 +65,8 @@ export type CreateSpaceInput = {
   name: string;
   description?: string | null;
   visibility?: Visibility;
+  /** A Lucide icon name from `lib/space-icons`, or null for none. */
+  icon?: string | null;
   emoji?: string | null;
   accent?: string | null;
   /** Fill it in the same request — what makes approving a proposal one click. */
@@ -73,7 +78,8 @@ export function useCreateSpace() {
   return useMutation({
     mutationFn: (input: CreateSpaceInput) =>
       apiFetch<Space>("/spaces", { method: "POST", body: input }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all }),
   });
 }
 
@@ -81,6 +87,8 @@ export type UpdateSpaceInput = {
   name?: string;
   description?: string | null;
   visibility?: Visibility;
+  /** `""` clears it, `undefined` leaves it alone — same contract as `emoji`. */
+  icon?: string | null;
   emoji?: string | null;
   accent?: string | null;
   pinned?: boolean;
@@ -90,7 +98,10 @@ export function useUpdateSpace(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: UpdateSpaceInput) =>
-      apiFetch<Space>(`/spaces/${encodeURIComponent(id)}`, { method: "PATCH", body: input }),
+      apiFetch<Space>(`/spaces/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: input,
+      }),
     onSuccess: (space) => {
       // Written straight into the detail cache so a rename or a pin shows on the same
       // tick rather than after a refetch, then the list is invalidated for the card.
@@ -108,7 +119,8 @@ export function useDeleteSpace() {
   return useMutation({
     mutationFn: (id: string) =>
       apiFetch<void>(`/spaces/${encodeURIComponent(id)}`, { method: "DELETE" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all }),
   });
 }
 
@@ -123,12 +135,22 @@ export function useDeleteSpace() {
 export function useAddToSpace() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ spaceId, itemIds }: { spaceId: string; itemIds: string[] }) =>
-      apiFetch<AddItemsResponse>(`/spaces/${encodeURIComponent(spaceId)}/items`, {
-        method: "POST",
-        body: { item_ids: itemIds },
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all }),
+    mutationFn: ({
+      spaceId,
+      itemIds,
+    }: {
+      spaceId: string;
+      itemIds: string[];
+    }) =>
+      apiFetch<AddItemsResponse>(
+        `/spaces/${encodeURIComponent(spaceId)}/items`,
+        {
+          method: "POST",
+          body: { item_ids: itemIds },
+        },
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all }),
   });
 }
 
@@ -140,7 +162,8 @@ export function useRemoveFromSpace() {
         `/spaces/${encodeURIComponent(spaceId)}/items/${encodeURIComponent(itemId)}`,
         { method: "DELETE" },
       ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all }),
   });
 }
 
@@ -167,7 +190,8 @@ export function useAcceptSpaceInvite() {
       apiFetch<Space>(`/spaces/invites/${encodeURIComponent(token)}/accept`, {
         method: "POST",
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all }),
   });
 }
 
@@ -179,6 +203,7 @@ export function useRemoveSpaceMember(spaceId: string) {
         `/spaces/${encodeURIComponent(spaceId)}/members/${encodeURIComponent(memberId)}`,
         { method: "DELETE" },
       ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.spaces.all }),
   });
 }

@@ -5,6 +5,7 @@ import { AlertTriangle, Loader2, Pause, Play } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { useFileLink } from "@/hooks/use-vault";
 import { ApiError } from "@/lib/api";
+import { memoryGradient } from "@/lib/memory-accent";
 import type { VaultItemDetail } from "@/lib/types";
 
 /**
@@ -25,7 +26,7 @@ import type { VaultItemDetail } from "@/lib/types";
  * that does not exist, and nobody looking at it could tell.
  */
 
-const DEFAULT_ACCENT = "from-violet-100 to-indigo-50";
+const DEFAULT_ACCENT = memoryGradient("recall");
 
 /** Height of a bar with no measured peak, as a percentage of the track. */
 const BASELINE = 6;
@@ -37,6 +38,7 @@ export function VoiceHero({
   children,
 }: {
   item: VaultItemDetail;
+  /** A CSS `background-image` value from `lib/memory-accent`, not a Tailwind class. */
   accent?: string;
   className?: string;
   /** The type badge, positioned by the caller exactly as it is over `MemoryBanner`. */
@@ -109,7 +111,8 @@ export function VoiceHero({
 
     const onTime = () => setCurrent(el.currentTime);
     const onMeta = () => {
-      if (Number.isFinite(el.duration) && el.duration > 0) setMeasured(el.duration);
+      if (Number.isFinite(el.duration) && el.duration > 0)
+        setMeasured(el.duration);
     };
     const onEnded = () => {
       setPlaying(false);
@@ -122,7 +125,9 @@ export function VoiceHero({
         load(true);
         return;
       }
-      setError("This browser can't play that recording. Download it to listen elsewhere.");
+      setError(
+        "This browser can't play that recording. Download it to listen elsewhere.",
+      );
     };
 
     const onPlay = () => setPlaying(true);
@@ -151,13 +156,18 @@ export function VoiceHero({
   const language = stringFrom(item.item_metadata.transcript_language);
 
   return (
-    <div className={`relative overflow-hidden bg-linear-to-br ${accent} ${className}`}>
+    <div
+      className={`relative overflow-hidden ${className}`}
+      style={{ backgroundImage: accent }}
+    >
       <div aria-hidden className="absolute inset-0 grid-dots opacity-60" />
       {children}
 
       {/* The element is never shown: its own controls would be a second transport next to
           the one below, and this surface needs the waveform to be the scrubber. */}
-      {src && <audio ref={audioRef} src={src} preload="metadata" className="hidden" />}
+      {src && (
+        <audio ref={audioRef} src={src} preload="metadata" className="hidden" />
+      )}
 
       <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 md:p-5">
         <div className="flex items-center gap-3 rounded-2xl border border-white/60 bg-card/80 p-2.5 backdrop-blur sm:gap-4 sm:p-3">
@@ -174,7 +184,10 @@ export function VoiceHero({
               <Pause className="size-5 fill-current sm:size-6" aria-hidden />
             ) : (
               // Nudged right so the triangle reads as centred in the circle.
-              <Play className="size-5 translate-x-px fill-current sm:size-6" aria-hidden />
+              <Play
+                className="size-5 translate-x-px fill-current sm:size-6"
+                aria-hidden
+              />
             )}
           </button>
 
@@ -192,7 +205,9 @@ export function VoiceHero({
               <span className="flex items-center gap-1.5 truncate">
                 {language && <span className="capitalize">{language}</span>}
                 {language && duration > 0 && <span aria-hidden>·</span>}
-                {duration > 0 && <span className="tabular-nums">{formatTime(duration)}</span>}
+                {duration > 0 && (
+                  <span className="tabular-nums">{formatTime(duration)}</span>
+                )}
               </span>
             </div>
           </div>
@@ -294,7 +309,9 @@ function Scrubber({
 /** True when this memory has audio in the bucket. `file_name` is only set once the object
  *  really landed, and the mime type is what makes it playable. */
 export function hasAudio(item: VaultItemDetail): boolean {
-  return Boolean(item.file_name) && Boolean(item.mime_type?.startsWith("audio/"));
+  return (
+    Boolean(item.file_name) && Boolean(item.mime_type?.startsWith("audio/"))
+  );
 }
 
 /** Peaks are validated and clamped server-side; this only guards against the column
@@ -307,7 +324,9 @@ function peaksFrom(value: unknown): number[] {
 }
 
 function numberFrom(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : null;
 }
 
 function stringFrom(value: unknown): string | null {

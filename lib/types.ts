@@ -21,7 +21,8 @@ export type OAuthProviderInfo = {
 
 export type ProvidersResponse = { providers: OAuthProviderInfo[] };
 
-export type ProcessingStatus = "pending" | "processing" | "completed" | "failed" | "skipped";
+export type ProcessingStatus =
+  "pending" | "processing" | "completed" | "failed" | "skipped";
 
 export type ContentType =
   | "youtube"
@@ -162,6 +163,9 @@ export type Space = {
   description: string | null;
   visibility: Visibility;
   /** One or two glyphs, chosen by the owner. Null until they pick one. */
+  /** A Lucide icon *name* from `lib/space-icons` — resolved to a component there, so an
+   *  unknown name falls back to `emoji` and then to a neutral mark. */
+  icon: string | null;
   emoji: string | null;
   /**
    * An accent *key* ("violet", "rose", …), never a CSS class — the gradient strings live
@@ -204,9 +208,11 @@ export type SpaceInvite = {
 export type PublicSpace = {
   name: string;
   description: string | null;
+  /** A Lucide icon *name* from `lib/space-icons` — resolved to a component there, so an
+   *  unknown name falls back to `emoji` and then to a neutral mark. */
+  icon: string | null;
   emoji: string | null;
   accent: string | null;
   ai_overview: string | null;
   items: VaultItem[];
 };
-

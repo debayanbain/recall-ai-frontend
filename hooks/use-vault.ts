@@ -198,6 +198,13 @@ export type UploadLimits = {
     languages: { code: string; label: string }[];
     default_language: string | null;
   };
+  /**
+   * Whether this deployment can read a video at all. The detail page reads it to decide
+   * whether to offer a re-read of a memory whose video was never looked at — the
+   * alternative is a button whose only possible outcome is the server refusing it, and
+   * on that page the refusal costs a round trip to learn.
+   */
+  video: { enabled: boolean };
 };
 
 /**

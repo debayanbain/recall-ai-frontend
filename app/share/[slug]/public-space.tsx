@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MemoryCard } from "@/components/memory-card";
 import { toMemories } from "@/lib/vault-adapter";
-import { emojiFor, gradientFor } from "@/lib/space-accent";
+import { SpaceGlyph } from "@/components/space-icon";
+import { gradientFor } from "@/lib/space-accent";
 import type { PublicSpace } from "@/lib/types";
 
 /**
@@ -25,13 +26,19 @@ import type { PublicSpace } from "@/lib/types";
  */
 
 const plain = "rounded-xl tracking-normal normal-case";
-const softCard = "card-soft gap-0 rounded-[calc(var(--radius)+4px)] py-0 shadow-none ring-0";
+const softCard =
+  "card-soft gap-0 rounded-[calc(var(--radius)+4px)] py-0 shadow-none ring-0";
 
 export function PublicSpaceView({ space }: { space: PublicSpace }) {
   const items = toMemories(space.items);
   // `gradientFor` keys off an id; a public Space sends none, so its name is the stable
   // input — the same name always draws the same colour.
-  const skin = { id: space.name, accent: space.accent };
+  const skin = {
+    id: space.name,
+    accent: space.accent,
+    icon: space.icon,
+    emoji: space.emoji,
+  };
 
   const copyLink = async () => {
     try {
@@ -93,7 +100,7 @@ export function PublicSpaceView({ space }: { space: PublicSpace }) {
           <div className="absolute inset-0 grid-dots opacity-50" />
           <div className="relative mx-auto max-w-3xl text-center">
             <Badge className="gap-1.5 rounded-full bg-white/85 px-3 py-1 text-[11.5px] font-medium tracking-normal text-primary normal-case backdrop-blur">
-              <span aria-hidden>{emojiFor(space)}</span> {items.length}{" "}
+              <SpaceGlyph space={skin} /> {items.length}{" "}
               {items.length === 1 ? "memory" : "memories"}
             </Badge>
             <h1 className="mt-4 font-display text-[36px] leading-[1.05] tracking-tight sm:mt-5 sm:text-[52px] md:text-[72px]">

@@ -44,7 +44,7 @@ import {
 import { transition } from "@/lib/motion";
 import { isActive, nav, secondary } from "@/lib/nav";
 import { useSpaces } from "@/hooks/use-spaces";
-import { emojiFor } from "@/lib/space-accent";
+import { SpaceGlyph } from "@/components/space-icon";
 
 /** Shared shape for every sidebar row so the rail keeps one rhythm. */
 const row =
@@ -99,7 +99,10 @@ export function AppSidebar() {
                       isActive={active}
                       tooltip={item.label}
                       render={
-                        <Link href={item.to} aria-current={active ? "page" : undefined} />
+                        <Link
+                          href={item.to}
+                          aria-current={active ? "page" : undefined}
+                        />
                       }
                       className={`${row} text-[13.5px] font-medium ${
                         active
@@ -112,7 +115,9 @@ export function AppSidebar() {
                           layoutId="sidebar-nav-active"
                           aria-hidden
                           className="absolute inset-0 rounded-xl bg-primary-soft"
-                          transition={reduced ? { duration: 0 } : transition.spring}
+                          transition={
+                            reduced ? { duration: 0 } : transition.spring
+                          }
                         />
                       )}
                       <item.icon
@@ -128,41 +133,42 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {pinned.length > 0 && (
-        <SidebarGroup className="mt-5 p-0">
-          <SidebarGroupLabel className="px-3 text-[11px] tracking-wider text-muted-foreground/80">
-            Pinned spaces
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {pinned.map((s) => {
-                const active = isActive(pathname, `/spaces/${s.id}`);
-                return (
-                  <SidebarMenuItem key={s.id}>
-                    <SidebarMenuButton
-                      isActive={active}
-                      tooltip={`${s.name} · ${s.memory_count} memories`}
-                      render={
-                        <Link
-                          href={`/spaces/${s.id}`}
-                          aria-current={active ? "page" : undefined}
+          <SidebarGroup className="mt-5 p-0">
+            <SidebarGroupLabel className="px-3 text-[11px] tracking-wider text-muted-foreground/80">
+              Pinned spaces
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {pinned.map((s) => {
+                  const active = isActive(pathname, `/spaces/${s.id}`);
+                  return (
+                    <SidebarMenuItem key={s.id}>
+                      <SidebarMenuButton
+                        isActive={active}
+                        tooltip={`${s.name} · ${s.memory_count} memories`}
+                        render={
+                          <Link
+                            href={`/spaces/${s.id}`}
+                            aria-current={active ? "page" : undefined}
+                          />
+                        }
+                        className={`${row} pr-9 text-[13px] font-normal text-muted-foreground hover:text-foreground data-active:bg-primary-soft data-active:text-accent-foreground`}
+                      >
+                        <SpaceGlyph
+                          space={s}
+                          className="shrink-0 text-primary"
                         />
-                      }
-                      className={`${row} pr-9 text-[13px] font-normal text-muted-foreground hover:text-foreground data-active:bg-primary-soft data-active:text-accent-foreground`}
-                    >
-                      <span aria-hidden className="shrink-0 text-primary">
-                        {emojiFor(s)}
-                      </span>
-                      <span>{s.name}</span>
-                    </SidebarMenuButton>
-                    <SidebarMenuBadge className="peer-data-[size=default]/menu-button:top-3 text-[11px] text-muted-foreground/70">
-                      {s.memory_count}
-                    </SidebarMenuBadge>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                        <span>{s.name}</span>
+                      </SidebarMenuButton>
+                      <SidebarMenuBadge className="peer-data-[size=default]/menu-button:top-3 text-[11px] text-muted-foreground/70">
+                        {s.memory_count}
+                      </SidebarMenuBadge>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         )}
 
         <SidebarGroup className="mt-5 p-0">
@@ -179,7 +185,10 @@ export function AppSidebar() {
                       isActive={active}
                       tooltip={item.label}
                       render={
-                        <Link href={item.to} aria-current={active ? "page" : undefined} />
+                        <Link
+                          href={item.to}
+                          aria-current={active ? "page" : undefined}
+                        />
                       }
                       className={`${row} text-[13px] font-normal text-muted-foreground hover:text-foreground data-active:bg-primary-soft data-active:text-accent-foreground`}
                     >
@@ -269,7 +278,11 @@ function NavUser() {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <SidebarMenuButton size="lg" aria-label={`${name} — account menu`} className={accountRow} />
+          <SidebarMenuButton
+            size="lg"
+            aria-label={`${name} — account menu`}
+            className={accountRow}
+          />
         }
       >
         <Avatar className="size-9 shrink-0 after:hidden">
@@ -280,7 +293,9 @@ function NavUser() {
         </Avatar>
         <span className="grid min-w-0 flex-1 leading-tight group-data-[collapsible=icon]:hidden">
           <span className="truncate text-[13px] font-semibold">{name}</span>
-          <span className="truncate text-[11px] font-normal text-muted-foreground">{email}</span>
+          <span className="truncate text-[11px] font-normal text-muted-foreground">
+            {email}
+          </span>
         </span>
         <ChevronsUpDown className="shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
       </DropdownMenuTrigger>
@@ -302,7 +317,9 @@ function NavUser() {
               </AvatarFallback>
             </Avatar>
             <span className="grid min-w-0 leading-tight">
-              <span className="truncate text-[13px] font-semibold text-foreground">{name}</span>
+              <span className="truncate text-[13px] font-semibold text-foreground">
+                {name}
+              </span>
               <span className="truncate text-[11px] font-normal text-muted-foreground">
                 {email}
               </span>
@@ -313,7 +330,10 @@ function NavUser() {
         <DropdownMenuSeparator />
 
         <DropdownMenuGroup>
-          <DropdownMenuItem className={menuItem} onClick={() => router.push("/settings")}>
+          <DropdownMenuItem
+            className={menuItem}
+            onClick={() => router.push("/settings")}
+          >
             <BadgeCheck /> Account
           </DropdownMenuItem>
           <DropdownMenuItem className={menuItem}>
@@ -322,7 +342,10 @@ function NavUser() {
           <DropdownMenuItem className={menuItem}>
             <Bell /> Notifications
           </DropdownMenuItem>
-          <DropdownMenuItem className={menuItem} onClick={() => router.push("/settings")}>
+          <DropdownMenuItem
+            className={menuItem}
+            onClick={() => router.push("/settings")}
+          >
             <Settings /> Settings
           </DropdownMenuItem>
         </DropdownMenuGroup>

@@ -21,7 +21,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MemoryBanner } from "@/components/memory-banner";
-import { FilePlaque, useAttachmentCover } from "@/components/attachment-preview";
+import {
+  FilePlaque,
+  useAttachmentCover,
+} from "@/components/attachment-preview";
 import type { LucideIcon } from "lucide-react";
 import type { Memory, MemoryKind } from "@/lib/mock-data";
 import { kindMeta } from "@/lib/mock-data";
@@ -42,18 +45,23 @@ const kindIcon: Record<MemoryKind, LucideIcon> = {
 };
 
 /** Strips the base-sera Card chrome so the RecallAI card-soft surface shows through. */
-const cardReset = "gap-0 rounded-[calc(var(--radius)+4px)] py-0 shadow-none ring-0";
+const cardReset =
+  "gap-0 rounded-[calc(var(--radius)+4px)] py-0 shadow-none ring-0";
 /** Strips the base-sera Badge/Button typography defaults. */
 const badgeReset = "tracking-normal normal-case";
 
 function favoriteToast(title: string, next: boolean) {
   const fn = next ? toast.success : toast.info;
-  fn(next ? "Added to favorites" : "Removed from favorites", { description: title });
+  fn(next ? "Added to favorites" : "Removed from favorites", {
+    description: title,
+  });
 }
 
 async function copyMemoryLink(memory: Memory) {
   try {
-    await navigator.clipboard.writeText(`${window.location.origin}/memory/${memory.id}`);
+    await navigator.clipboard.writeText(
+      `${window.location.origin}/memory/${memory.id}`,
+    );
     toast.success("Link copied", { description: memory.title });
   } catch {
     toast.info("Couldn't copy automatically", {
@@ -93,12 +101,18 @@ export function MemoryCard({
   // An uploaded picture becomes the banner, exactly like a scraped still: same wash, same
   // fallback, same pill treatment for the badges over it. A scraped still still wins where
   // there is one -- it is already loaded and costs nothing to keep.
-  const { ref: viewRef, src: uploadCover, onImageError, resolving } = useAttachmentCover(m);
+  const {
+    ref: viewRef,
+    src: uploadCover,
+    onImageError,
+    resolving,
+  } = useAttachmentCover(m);
   const cover = m.cover ?? uploadCover;
   // Nothing to draw and something to name. Voice notes are excluded: their filename is
   // one this server invented, so a plaque reading "voice-note.webm" tells its owner less
   // than the Voice badge already sitting in the corner.
-  const plaque = !cover && !resolving && m.kind !== "voice" ? m.file : undefined;
+  const plaque =
+    !cover && !resolving && m.kind !== "voice" ? m.file : undefined;
 
   const heightClass = compact
     ? "h-28 sm:h-32"
@@ -112,7 +126,9 @@ export function MemoryCard({
     <div ref={viewRef} className="group block break-inside-avoid">
       <Card
         className={`card-soft card-lift relative overflow-hidden ${cardReset} ${
-          selected ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
+          selected
+            ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+            : ""
         }`}
       >
         {/* One overlay, three modes. Kept as a sibling of the content so the hover
@@ -178,14 +194,23 @@ export function MemoryCard({
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label={favorited ? `Remove ${m.title} from favorites` : `Favorite ${m.title}`}
+              aria-label={
+                favorited
+                  ? `Remove ${m.title} from favorites`
+                  : `Favorite ${m.title}`
+              }
               aria-pressed={favorited}
               onClick={() => favoriteToast(m.title, toggleFavorite(m.id))}
               className={`relative size-8 rounded-full bg-white/95 shadow-sm before:absolute before:-inset-1.5 before:content-[''] hover:bg-white ${
-                favorited ? "text-rose-500" : "text-muted-foreground hover:text-primary"
+                favorited
+                  ? "text-rose-500"
+                  : "text-muted-foreground hover:text-primary"
               }`}
             >
-              <Heart className="relative size-3.5" fill={favorited ? "currentColor" : "none"} />
+              <Heart
+                className="relative size-3.5"
+                fill={favorited ? "currentColor" : "none"}
+              />
             </Button>
             {onAddToSpace && (
               <Button
@@ -232,7 +257,9 @@ export function MemoryCard({
               <span className="truncate">{m.label}</span>
             </div>
           )}
-          <h3 className="text-[14.5px] font-semibold leading-snug tracking-tight">{m.title}</h3>
+          <h3 className="text-[14.5px] font-semibold leading-snug tracking-tight">
+            {m.title}
+          </h3>
           {!compact && (
             <p className="line-clamp-2 text-[12.5px] leading-relaxed text-muted-foreground">
               {m.summary}
@@ -250,7 +277,9 @@ export function MemoryCard({
                 </Badge>
               ))}
             </div>
-            <span className="shrink-0 text-[10.5px] text-muted-foreground">{m.savedAt}</span>
+            <span className="shrink-0 text-[10.5px] text-muted-foreground">
+              {m.savedAt}
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -266,7 +295,11 @@ export function MemoryRow({ m }: { m: Memory }) {
   // The list view gets the same picture the card does, at thumbnail size. A row is what
   // someone scans when they already half-know what they are looking for, which is exactly
   // when a photo beats a generic icon.
-  const { ref: viewRef, src: uploadCover, onImageError } = useAttachmentCover(m);
+  const {
+    ref: viewRef,
+    src: uploadCover,
+    onImageError,
+  } = useAttachmentCover(m);
   // A dead thumbnail falls back to the kind icon rather than to the browser's broken-image
   // glyph. Keyed by the URL that failed, so a re-mint of an expired link -- the common
   // case -- is drawn rather than discarded by a latch nobody cleared.
@@ -285,7 +318,8 @@ export function MemoryRow({ m }: { m: Memory }) {
         className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       />
       <div
-        className={`relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-linear-to-br sm:h-14 sm:w-14 ${m.accent}`}
+        className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl sm:h-14 sm:w-14"
+        style={{ backgroundImage: m.accent }}
       >
         {thumb ? (
           /* eslint-disable-next-line @next/next/no-img-element -- same reason as the
@@ -310,11 +344,16 @@ export function MemoryRow({ m }: { m: Memory }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} />
-          <Badge variant="secondary" className="px-0 text-[10.5px] tracking-wider text-muted-foreground">
+          <Badge
+            variant="secondary"
+            className="px-0 text-[10.5px] tracking-wider text-muted-foreground"
+          >
             {meta.label}
           </Badge>
         </div>
-        <div className="mt-0.5 line-clamp-1 text-[13.5px] font-semibold">{m.title}</div>
+        <div className="mt-0.5 line-clamp-1 text-[13.5px] font-semibold">
+          {m.title}
+        </div>
         <div className="line-clamp-1 text-[11.5px] text-muted-foreground">
           {m.source} · {m.savedAt}
         </div>
@@ -322,11 +361,15 @@ export function MemoryRow({ m }: { m: Memory }) {
       <Button
         variant="ghost"
         size="icon"
-        aria-label={favorited ? `Remove ${m.title} from favorites` : `Favorite ${m.title}`}
+        aria-label={
+          favorited ? `Remove ${m.title} from favorites` : `Favorite ${m.title}`
+        }
         aria-pressed={favorited}
         onClick={() => favoriteToast(m.title, toggleFavorite(m.id))}
         className={`relative z-20 size-10 shrink-0 rounded-full ${
-          favorited ? "text-rose-500" : "text-muted-foreground hover:bg-secondary hover:text-primary"
+          favorited
+            ? "text-rose-500"
+            : "text-muted-foreground hover:bg-secondary hover:text-primary"
         }`}
       >
         <Heart className="size-4" fill={favorited ? "currentColor" : "none"} />

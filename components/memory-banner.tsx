@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { memoryGradient } from "@/lib/memory-accent";
+
 /**
  * The coloured banner at the top of a memory card and of the memory page.
  *
@@ -29,14 +31,17 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 const FADE =
   "linear-gradient(to bottom, #000 0%, #000 18%, rgba(0,0,0,0.62) 52%, rgba(0,0,0,0.22) 74%, transparent 92%)";
 
-const DEFAULT_ACCENT = "from-violet-100 to-indigo-50";
+/** Used only when a caller has no memory to derive one from. */
+const DEFAULT_ACCENT = memoryGradient("recall");
 
 /** Only plain web images. Anything else is treated as "no cover". */
 function imageSrc(cover: string | null | undefined): string | null {
   if (!cover) return null;
   try {
     const parsed = new URL(cover);
-    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : null;
+    return parsed.protocol === "http:" || parsed.protocol === "https:"
+      ? parsed.href
+      : null;
   } catch {
     return null;
   }
@@ -51,6 +56,7 @@ export function MemoryBanner({
   children,
 }: {
   cover?: string | null;
+  /** A CSS `background-image` value from `lib/memory-accent`, not a Tailwind class. */
   accent?: string;
   /** The memory's title. Empty marks the banner decorative, which it is without a still. */
   alt?: string;
@@ -83,7 +89,10 @@ export function MemoryBanner({
   }, [src]);
 
   return (
-    <div className={`relative overflow-hidden bg-linear-to-br ${accent} ${className}`}>
+    <div
+      className={`relative overflow-hidden ${className}`}
+      style={{ backgroundImage: accent }}
+    >
       {showImage ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element -- next/image cannot
@@ -107,8 +116,12 @@ export function MemoryBanner({
               of a hardcoded one, and it keeps working when the palette changes. */}
           <div
             aria-hidden
-            className={`absolute inset-0 bg-linear-to-br ${accent}`}
-            style={{ maskImage: FADE, WebkitMaskImage: FADE }}
+            className="absolute inset-0"
+            style={{
+              backgroundImage: accent,
+              maskImage: FADE,
+              WebkitMaskImage: FADE,
+            }}
           />
         </>
       ) : (

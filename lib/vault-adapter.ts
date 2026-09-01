@@ -1,3 +1,4 @@
+import { memoryGradient } from "@/lib/memory-accent";
 import type { Memory, MemoryKind } from "@/lib/mock-data";
 import type { ContentType, VaultItem } from "@/lib/types";
 
@@ -22,15 +23,6 @@ const KIND_BY_TYPE: Record<ContentType, MemoryKind> = {
   voice: "voice",
   image: "image",
 };
-
-const ACCENTS = [
-  "from-violet-100 to-indigo-50",
-  "from-rose-100 to-orange-50",
-  "from-emerald-100 to-teal-50",
-  "from-amber-100 to-yellow-50",
-  "from-sky-100 to-cyan-50",
-  "from-fuchsia-100 to-pink-50",
-];
 
 const HEIGHTS: NonNullable<Memory["height"]>[] = ["sm", "md", "lg"];
 
@@ -111,7 +103,7 @@ export function toMemory(item: VaultItem): Memory {
     file: item.file_name
       ? { name: item.file_name, mime: item.mime_type, size: item.file_size }
       : undefined,
-    accent: ACCENTS[seed % ACCENTS.length],
+    accent: memoryGradient(item.id),
     height: HEIGHTS[seed % HEIGHTS.length],
     space: item.ai_category ?? undefined,
   };

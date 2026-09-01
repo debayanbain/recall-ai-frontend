@@ -38,7 +38,9 @@ import {
   useSpacesForItem,
 } from "@/hooks/use-spaces";
 import { exitSelection } from "@/lib/stores/selection-store";
-import { ACCENT_KEYS, SPACE_ACCENTS, emojiFor, gradientFor } from "@/lib/space-accent";
+import { SpaceGlyph } from "@/components/space-icon";
+import { SpaceIconPicker } from "@/components/space-icon-picker";
+import { ACCENT_KEYS, gradientFor } from "@/lib/space-accent";
 import type { Space } from "@/lib/types";
 
 /**
@@ -75,13 +77,19 @@ const AddToSpaceContext = createContext<{
 
 export function useAddToSpaceSheet() {
   const ctx = useContext(AddToSpaceContext);
-  if (!ctx) throw new Error("useAddToSpaceSheet must be used inside <AddToSpaceProvider>");
+  if (!ctx)
+    throw new Error(
+      "useAddToSpaceSheet must be used inside <AddToSpaceProvider>",
+    );
   return ctx;
 }
 
 export function AddToSpaceProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SheetState>(null);
-  const open = useCallback((itemIds: string[] = []) => setState({ itemIds }), []);
+  const open = useCallback(
+    (itemIds: string[] = []) => setState({ itemIds }),
+    [],
+  );
   const value = useMemo(() => ({ open }), [open]);
   const isMobile = useIsMobile();
 
@@ -99,7 +107,10 @@ export function AddToSpaceProvider({ children }: { children: ReactNode }) {
             showCloseButton={false}
             className="max-h-[92dvh] gap-0 overflow-y-auto overscroll-contain rounded-t-[28px] border-border bg-card p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] text-card-foreground"
           >
-            <div aria-hidden className="mx-auto mb-4 h-1 w-10 rounded-full bg-border" />
+            <div
+              aria-hidden
+              className="mx-auto mb-4 h-1 w-10 rounded-full bg-border"
+            />
             <AddToSpaceForm
               itemIds={state?.itemIds ?? []}
               onDone={() => setState(null)}
@@ -154,7 +165,7 @@ function AddToSpaceForm({
 
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
-  const [emoji, setEmoji] = useState("");
+  const [icon, setIcon] = useState<string | null>(null);
   const [accent, setAccent] = useState<string>(ACCENT_KEYS[0]);
 
   // Only the spaces this person may actually write to. Offering one they will be refused
@@ -179,7 +190,9 @@ function AddToSpaceForm({
               ? `Already in ${space.name}`
               : `Added ${result.added} to ${space.name}`,
             result.skipped > 0 && result.added > 0
-              ? { description: `${result.skipped} were already there or aren't yours to add.` }
+              ? {
+                  description: `${result.skipped} were already there or aren't yours to add.`,
+                }
               : undefined,
           );
           exitSelection();
@@ -211,11 +224,13 @@ function AddToSpaceForm({
       return;
     }
     create.mutate(
-      { name: trimmed, emoji: emoji.trim() || null, accent, item_ids: itemIds },
+      { name: trimmed, icon, accent, item_ids: itemIds },
       {
         onSuccess: (space) => {
           toast.success(`Created ${space.name}`, {
-            description: count ? `${count} ${count === 1 ? "memory" : "memories"} added` : undefined,
+            description: count
+              ? `${count} ${count === 1 ? "memory" : "memories"} added`
+              : undefined,
           });
           exitSelection();
           onDone();
@@ -259,7 +274,10 @@ function AddToSpaceForm({
       {creating || count === 0 ? (
         <div className="mt-5 space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="space-name" className="text-[12.5px] font-medium normal-case tracking-normal">
+            <Label
+              htmlFor="space-name"
+              className="text-[12.5px] font-medium normal-case tracking-normal"
+            >
               Name
             </Label>
             <Input
@@ -275,41 +293,17 @@ function AddToSpaceForm({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="space-emoji" className="text-[12.5px] font-medium normal-case tracking-normal">
-              Icon <span className="text-muted-foreground">(optional)</span>
-            </Label>
-            <Input
-              id="space-emoji"
-              value={emoji}
-              onChange={(e) => setEmoji(e.target.value)}
-              maxLength={8}
-              placeholder="✦"
-              className="h-11 w-20 rounded-xl border border-border bg-secondary/50 px-3 text-center text-[18px] focus-visible:border-primary/40 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-primary/10"
+            <p className="text-[12.5px] font-medium">
+              Icon &amp; colour{" "}
+              <span className="text-muted-foreground">(optional)</span>
+            </p>
+            <SpaceIconPicker
+              icon={icon}
+              accent={accent}
+              onIconChange={setIcon}
+              onAccentChange={setAccent}
             />
           </div>
-
-          <fieldset className="space-y-2">
-            <legend className="text-[12.5px] font-medium">Colour</legend>
-            <div className="flex flex-wrap gap-2">
-              {ACCENT_KEYS.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setAccent(key)}
-                  aria-pressed={accent === key}
-                  aria-label={SPACE_ACCENTS[key].label}
-                  className={`grid size-11 place-items-center rounded-xl border transition-colors ${
-                    accent === key ? "border-primary" : "border-border"
-                  }`}
-                >
-                  <span
-                    aria-hidden
-                    className={`size-6 rounded-lg ${SPACE_ACCENTS[key].swatch}`}
-                  />
-                </button>
-              ))}
-            </div>
-          </fieldset>
 
           <div className="flex gap-2 pt-1">
             {count > 0 && (
@@ -336,7 +330,11 @@ function AddToSpaceForm({
       ) : (
         <div className="mt-5">
           {isLoading ? (
-            <div aria-busy="true" aria-label="Loading spaces" className="space-y-2">
+            <div
+              aria-busy="true"
+              aria-label="Loading spaces"
+              className="space-y-2"
+            >
               {[0, 1, 2].map((i) => (
                 <Skeleton key={i} className="h-14 w-full rounded-2xl" />
               ))}
@@ -358,7 +356,7 @@ function AddToSpaceForm({
                         aria-hidden
                         className={`grid size-10 shrink-0 place-items-center rounded-xl bg-linear-to-br text-[17px] ${gradientFor(space)}`}
                       >
-                        {emojiFor(space)}
+                        <SpaceGlyph space={space} />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[14px] font-medium">
@@ -371,7 +369,9 @@ function AddToSpaceForm({
                       </span>
                       {/* Only meaningful for a single memory — see the note at the top of
                           this file about why a multi-select shows no checkmarks. */}
-                      {has && <Check className="size-4 shrink-0 text-primary" />}
+                      {has && (
+                        <Check className="size-4 shrink-0 text-primary" />
+                      )}
                     </button>
                   </li>
                 );

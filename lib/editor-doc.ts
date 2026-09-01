@@ -204,7 +204,39 @@ function normalizeBlock(block: unknown): EditorBlock | null {
  * field is checked rather than asserted.
  */
 export function storedDocument(item: VaultItemDetail): EditorBlock[] | null {
-  const stored = (item.item_metadata as Record<string, unknown> | null)?.editor_doc;
+  return documentAt(item, "editor_doc");
+}
+
+/**
+ * The document the pipeline built from a video reading, or null.
+ *
+ * Kept in its own metadata key and read by its own function, because `editor_doc` means
+ * "a person edited this". It seeds the editor and it is what `PATCH /vault/{id}/content`
+ * writes, so a machine-written document sitting there would be indistinguishable from the
+ * user's own work — and the next video re-read would overwrite whatever they had typed.
+ */
+export function machineDocument(item: VaultItemDetail): EditorBlock[] | null {
+  return documentAt(item, "video_doc");
+}
+
+/**
+ * What the reader renders: the hand-edited document if there is one, else the generated
+ * one. Deliberately NOT what `toEditorBlocks` seeds the editor from — pressing Edit must
+ * not quietly adopt a machine's document as the user's own.
+ */
+export function readerDocument(item: VaultItemDetail): EditorBlock[] | null {
+  return storedDocument(item) ?? machineDocument(item);
+}
+
+/**
+ * One key's document, validated.
+ *
+ * `item_metadata` is an open JSONB record holding whatever the extractor recorded, so
+ * every field is checked rather than asserted, and the inline allowlist is re-applied
+ * here regardless of which side wrote it.
+ */
+function documentAt(item: VaultItemDetail, key: string): EditorBlock[] | null {
+  const stored = (item.item_metadata as Record<string, unknown> | null)?.[key];
   const blocks =
     typeof stored === "object" && stored !== null
       ? (stored as { blocks?: unknown }).blocks
@@ -226,7 +258,17 @@ function paragraphsFrom(content: string): EditorBlock[] {
     }));
 }
 
-/** What to seed the editor with: the stored document, else the flat content. */
+/**
+ * What to seed the editor with: whatever the reader is looking at, else the flat content.
+ *
+ * `readerDocument`, not `storedDocument`, so pressing Edit on a video memory opens the
+ * structured document that is on screen rather than the flat text behind it — an editor
+ * that disagrees with the page is an editor that looks broken, and saving would silently
+ * flatten the headings and lists the reader could see a moment earlier.
+ *
+ * A save then writes `editor_doc`, which outranks the generated one from that point on.
+ * That is the intended promotion: the person reviewed it and pressed Save.
+ */
 export function toEditorBlocks(item: VaultItemDetail): EditorBlock[] {
-  return storedDocument(item) ?? (item.content ? paragraphsFrom(item.content) : []);
+  return readerDocument(item) ?? (item.content ? paragraphsFrom(item.content) : []);
 }

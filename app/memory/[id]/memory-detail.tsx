@@ -41,13 +41,15 @@ import { FilePlaque, useAttachmentCover } from "@/components/attachment-preview"
 import { MemoryCard } from "@/components/memory-card";
 import { VoiceHero, hasAudio } from "@/components/voice-hero";
 import { ProcessingState } from "@/components/processing-state";
+import { MemoryLinks } from "@/components/memory-links";
 import { TranscriptControls } from "@/components/transcript-controls";
+import { VideoReadControls } from "@/components/video-read-controls";
 import { useCapture } from "@/components/capture-sheet";
 import { useSession } from "@/hooks/use-auth";
 import { useDeleteVaultItem, useFileLink, useVaultItem, useVaultItems } from "@/hooks/use-vault";
 import { ApiError } from "@/lib/api";
 import { toMemories, toMemory } from "@/lib/vault-adapter";
-import { storedDocument } from "@/lib/editor-doc";
+import { readerDocument } from "@/lib/editor-doc";
 import { toggleFavorite, useStore } from "@/lib/store";
 import { kindMeta } from "@/lib/mock-data";
 import type { VaultItemDetail } from "@/lib/types";
@@ -280,7 +282,9 @@ export function MemoryDetail({ id }: { id: string }) {
   // Present once someone has edited by hand. `content` stays the flat projection the
   // search and the embedding are built from, but rendering *that* is what made an
   // applied heading come back looking like a paragraph — so the document wins here.
-  const editorDoc = storedDocument(item);
+  // The hand-edited document when there is one, else the one built from the video
+  // reading. Both render through RichContent; only their provenance differs.
+  const editorDoc = readerDocument(item);
   // Hidden while the worker still owns this item: it writes `content` from the
   // extraction when it finishes, so anything typed in the meantime would be overwritten
   // without a word.
@@ -479,6 +483,11 @@ export function MemoryDetail({ id }: { id: string }) {
               output that can be fluently wrong, and this is the only way back from it. */}
           {hasAudio(item) && <TranscriptControls item={item} />}
 
+          {/* The same carve-out, for the other output that looks finished while half of
+              it is missing: a reel whose video was never read. Renders itself only when
+              there is really a video to go back to. */}
+          <VideoReadControls item={item} />
+
           <Card className={`${softCard} mt-6 sm:mt-7`}>
             <CardContent className="p-5 sm:p-6">
               <div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wider text-primary">
@@ -506,6 +515,12 @@ export function MemoryDetail({ id }: { id: string }) {
             </CardContent>
           </Card>
 
+          {/* Above the body on purpose. For a reel the links ARE the point — the
+              caption is a hook and the address is what the viewer was told to go to —
+              and burying them under a wall of extracted text is where they were before
+              this existed. */}
+          <MemoryLinks item={item} />
+
           <div className="mt-6 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <h2 className="font-display text-[22px] sm:text-[24px]">Full content</h2>
@@ -529,6 +544,16 @@ export function MemoryDetail({ id }: { id: string }) {
                 )}
               </div>
             </div>
+            {/* Above BOTH render paths. It used to sit inside the flat-content branch,
+                which meant the moment a video memory gained a structured document the
+                page stopped saying a machine had written half of it. */}
+            {!editing && item.item_metadata.content_source === "video" && (
+              <p className="mb-2 flex items-start gap-1.5 text-[12.5px] text-muted-foreground">
+                <Sparkles className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
+                Recall watched this video — the sections below marked as seen or spoken are
+                its reading, not words the author typed.
+              </p>
+            )}
             {editing ? (
               // Unmounted on close, so reopening always re-seeds from what the cache
               // holds after the save rather than from a stale editor instance.
