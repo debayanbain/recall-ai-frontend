@@ -1,11 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import Link from "next/link";
-import { LogIn } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { MemoryGrid } from "@/components/memory-grid";
+import { SignedOutInvite } from "@/components/signed-out-invite";
 import { useSession } from "@/hooks/use-auth";
 import { useVaultItems } from "@/hooks/use-vault";
 import { toMemories } from "@/lib/vault-adapter";
@@ -40,27 +37,7 @@ export function MemoryFeed({
         {heading && (
           <h2 className="font-display text-[22px] tracking-tight sm:text-[26px]">{heading}</h2>
         )}
-        <Card className="mt-5 gap-0 rounded-3xl border border-dashed border-border bg-secondary/30 py-0 shadow-none ring-0">
-          <CardContent className="px-6 py-14 text-center">
-            <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-primary-soft text-primary">
-              <LogIn className="size-5" aria-hidden />
-            </div>
-            <h3 className="mt-4 font-display text-[22px] tracking-tight">
-              Your memories live here
-            </h3>
-            <p className="mx-auto mt-1.5 max-w-sm text-[13px] leading-relaxed text-muted-foreground">
-              Sign in and anything you paste is summarized, tagged and connected
-              automatically.
-            </p>
-            <Button
-              nativeButton={false}
-              render={<Link href="/sign-in" />}
-              className="mt-5 h-11 gap-2 rounded-xl gradient-primary px-4 text-[13.5px] font-semibold tracking-normal text-white normal-case hover:bg-transparent"
-            >
-              Sign in to start
-            </Button>
-          </CardContent>
-        </Card>
+        <SignedOutInvite />
       </section>
     );
   }

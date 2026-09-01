@@ -41,9 +41,10 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { spaces } from "@/lib/mock-data";
 import { transition } from "@/lib/motion";
 import { isActive, nav, secondary } from "@/lib/nav";
+import { useSpaces } from "@/hooks/use-spaces";
+import { emojiFor } from "@/lib/space-accent";
 
 /** Shared shape for every sidebar row so the rail keeps one rhythm. */
 const row =
@@ -54,7 +55,10 @@ const row =
 export function AppSidebar() {
   const pathname = usePathname();
   const reduced = useReducedMotion();
-  const pinned = spaces.filter((s) => s.pinned);
+  // Real Spaces, and only the pinned ones. Signed out this is simply empty -- the
+  // query is disabled, so no request fires that could only ever 401.
+  const { data: spaces } = useSpaces();
+  const pinned = (spaces ?? []).filter((s) => s.pinned);
 
   return (
     <Sidebar collapsible="icon" className="border-border/70">
@@ -123,6 +127,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {pinned.length > 0 && (
         <SidebarGroup className="mt-5 p-0">
           <SidebarGroupLabel className="px-3 text-[11px] tracking-wider text-muted-foreground/80">
             Pinned spaces
@@ -135,7 +140,7 @@ export function AppSidebar() {
                   <SidebarMenuItem key={s.id}>
                     <SidebarMenuButton
                       isActive={active}
-                      tooltip={`${s.title} · ${s.memoryCount} memories`}
+                      tooltip={`${s.name} · ${s.memory_count} memories`}
                       render={
                         <Link
                           href={`/spaces/${s.id}`}
@@ -145,12 +150,12 @@ export function AppSidebar() {
                       className={`${row} pr-9 text-[13px] font-normal text-muted-foreground hover:text-foreground data-active:bg-primary-soft data-active:text-accent-foreground`}
                     >
                       <span aria-hidden className="shrink-0 text-primary">
-                        {s.emoji}
+                        {emojiFor(s)}
                       </span>
-                      <span>{s.title}</span>
+                      <span>{s.name}</span>
                     </SidebarMenuButton>
                     <SidebarMenuBadge className="peer-data-[size=default]/menu-button:top-3 text-[11px] text-muted-foreground/70">
-                      {s.memoryCount}
+                      {s.memory_count}
                     </SidebarMenuBadge>
                   </SidebarMenuItem>
                 );
@@ -158,6 +163,7 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        )}
 
         <SidebarGroup className="mt-5 p-0">
           <SidebarGroupLabel className="px-3 text-[11px] tracking-wider text-muted-foreground/80">

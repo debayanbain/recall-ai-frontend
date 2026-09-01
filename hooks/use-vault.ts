@@ -1,6 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { apiFetch, apiUpload } from "@/lib/api";
 import { useSession } from "@/hooks/use-auth";
 import { queryKeys } from "@/lib/query-keys";
@@ -25,6 +30,45 @@ export function useVaultItems({ limit = 20, offset = 0 } = {}) {
     refetchInterval: (query) =>
       query.state.data?.items.some(
         (i) => i.processing_status === "pending" || i.processing_status === "processing",
+      )
+        ? 5_000
+        : false,
+  });
+}
+
+/**
+ * The whole vault, oldest-ward, a page at a time.
+ *
+ * The timeline groups by real calendar periods, so it needs to keep walking backwards
+ * rather than showing one window: an infinite query is one growing cache entry, where
+ * `useVaultItems` is a fresh entry per offset. `/vault` already returns `created_at`
+ * descending, so page order *is* chronological order and nothing is re-sorted here.
+ *
+ * The server caps `limit` at 100 and scopes every row to the session's own user, so the
+ * page size below is a request shape, never an authorization boundary.
+ */
+export function useVaultTimeline({ pageSize = 60 } = {}) {
+  const { isSignedIn } = useSession();
+  return useInfiniteQuery({
+    queryKey: queryKeys.vault.timeline(pageSize),
+    queryFn: ({ pageParam }) =>
+      apiFetch<VaultListResponse>(`/vault?limit=${pageSize}&offset=${pageParam}`),
+    initialPageParam: 0,
+    // `total` comes from the same scan as the rows (count(*) OVER ()), so it is the
+    // authority on whether another page exists — not "did this page come back full".
+    getNextPageParam: (last) => {
+      const loaded = last.offset + last.items.length;
+      return last.items.length > 0 && loaded < last.total ? loaded : undefined;
+    },
+    // A public shell would otherwise fire a request that can only ever 401.
+    enabled: isSignedIn,
+    // Same rule the list follows: a freshly captured item is enriched out of band, so
+    // poll while anything is in flight and stop the moment nothing is.
+    refetchInterval: (query) =>
+      query.state.data?.pages.some((page) =>
+        page.items.some(
+          (i) => i.processing_status === "pending" || i.processing_status === "processing",
+        ),
       )
         ? 5_000
         : false,

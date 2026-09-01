@@ -208,6 +208,15 @@ export const memories: Memory[] = [
   },
 ];
 
+/**
+ * Fixture for the phone mockups on `/mobile`, and nothing else.
+ *
+ * Spaces are real now — `lib/types.ts` has the wire type and `hooks/use-spaces.ts` the
+ * queries. `/mobile` is a static design reference (five phone frames, no data layer), so
+ * it keeps a fixture rather than fetching. **Do not wire a real page to this**: it has a
+ * `gradient` class string where a Space has an accent key, a `title` where a Space has a
+ * `name`, and a `connectionCount` that is invented.
+ */
 export interface SpaceData {
   id: string;
   title: string;

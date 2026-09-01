@@ -18,6 +18,8 @@ import { useCapture } from "@/components/capture-sheet";
 import { useIsCompactNav } from "@/hooks/use-mobile";
 import { transition } from "@/lib/motion";
 import { bottomNav, isActive } from "@/lib/nav";
+import { SelectionBar } from "@/components/selection-bar";
+import { useSelectionStore } from "@/lib/stores/selection-store";
 
 /** Neutralises the base-sera Button defaults (rounded-none, uppercase, tracking). */
 const plain = "rounded-xl tracking-normal normal-case";
@@ -41,6 +43,9 @@ export function AppShell({
   // instead of expanding over the content.
   const compact = useIsCompactNav();
   const [open, setOpen] = useState(true);
+  // The selection bar takes the bottom nav's place on a phone rather than stacking on
+  // top of it -- see the note in `components/selection-bar.tsx`.
+  const selecting = useSelectionStore((s) => s.active);
 
   return (
     <SidebarProvider
@@ -159,7 +164,8 @@ export function AppShell({
       </SidebarInset>
 
       {/* Mobile bottom navigation — top-level destinations only */}
-      <BottomNav pathname={pathname} onCapture={() => capture.open()} />
+      {!selecting && <BottomNav pathname={pathname} onCapture={() => capture.open()} />}
+      <SelectionBar />
     </SidebarProvider>
   );
 }

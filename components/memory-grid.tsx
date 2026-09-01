@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Heart, LayoutGrid, List, Search, SlidersHorizontal } from "lucide-react";
+import { CheckSquare, Heart, LayoutGrid, List, Search, SlidersHorizontal } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +18,8 @@ import {
 import { MemoryCard, MemoryRow } from "@/components/memory-card";
 import { useCapture } from "@/components/capture-sheet";
 import { useStore } from "@/lib/store";
+import { useAddToSpaceSheet } from "@/components/add-to-space";
+import { useSelection, useSelectionStore } from "@/lib/stores/selection-store";
 import type { Memory, MemoryKind } from "@/lib/mock-data";
 import { fadeUp, motionVariants, scaleIn, stagger, transition } from "@/lib/motion";
 
@@ -88,6 +90,10 @@ export function MemoryGrid({
   const [sort, setSort] = useState<SortId>("relevant");
   const [view, setView] = useState<"cards" | "list">("cards");
   const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const sheet = useAddToSpaceSheet();
+  const { active: selecting } = useSelection();
+  const enterSelection = useSelectionStore((s) => s.enter);
+  const exitSelection = useSelectionStore((s) => s.exit);
   const reduced = useReducedMotion();
   const listVariants = motionVariants(reduced, stagger(0.035));
   const itemVariants = motionVariants(reduced, fadeUp);
@@ -126,6 +132,20 @@ export function MemoryGrid({
           </ToggleGroup>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Selection is disabled while the mock library is padded out: that mode
+                repeats each item under a `${id}-${i}` key, so one tap would select two
+                cards and the bar would count memories that are the same memory. */}
+            {!(duplicateForDensity && !items) && (
+              <Toggle
+                pressed={selecting}
+                onPressedChange={(next) => (next ? enterSelection() : exitSelection())}
+                aria-label="Select memories"
+                className={`${chip} gap-1.5 aria-pressed:border-primary/30 aria-pressed:bg-primary-soft aria-pressed:text-accent-foreground`}
+              >
+                <CheckSquare className="size-3.5" />
+                Select
+              </Toggle>
+            )}
             <Toggle
               pressed={onlyFavorites}
               onPressedChange={setOnlyFavorites}
@@ -290,7 +310,7 @@ export function MemoryGrid({
               variants={itemVariants}
               className="mb-4 break-inside-avoid sm:mb-5"
             >
-              <MemoryCard m={m} />
+              <MemoryCard m={m} onAddToSpace={(id) => sheet.open([id])} />
             </motion.div>
           ))}
         </motion.div>

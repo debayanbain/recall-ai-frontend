@@ -10,7 +10,9 @@ import {
   StickyNote,
   Image as ImageIcon,
   GitBranch,
+  Check,
   Heart,
+  Plus,
   Share2,
   Sparkles,
 } from "lucide-react";
@@ -24,6 +26,7 @@ import type { LucideIcon } from "lucide-react";
 import type { Memory, MemoryKind } from "@/lib/mock-data";
 import { kindMeta } from "@/lib/mock-data";
 import { toggleFavorite, useStore } from "@/lib/store";
+import { useIsSelected, useSelectionStore } from "@/lib/stores/selection-store";
 
 const kindIcon: Record<MemoryKind, LucideIcon> = {
   article: LinkIcon,
@@ -59,11 +62,33 @@ async function copyMemoryLink(memory: Memory) {
   }
 }
 
-export function MemoryCard({ m, compact = false }: { m: Memory; compact?: boolean }) {
+export function MemoryCard({
+  m,
+  compact = false,
+  readOnly = false,
+  onAddToSpace,
+}: {
+  m: Memory;
+  compact?: boolean;
+  /**
+   * A card a stranger is looking at, on a public Space page. No favourite (it writes to
+   * the viewer's own store, which is not a thing they asked for), no copy-link (it points
+   * at `/memory/{id}`, which answers 404 to anyone but the owner), and no navigation --
+   * the card is the whole of what is shared.
+   */
+  readOnly?: boolean;
+  /** Opens the "add to space" sheet for this one memory. Omitted where there is none. */
+  onAddToSpace?: (id: string) => void;
+}) {
   const Icon = kindIcon[m.kind];
   const meta = kindMeta[m.kind];
   const { favorites } = useStore();
   const favorited = favorites.includes(m.id);
+  // Selection is off entirely on a public page: there is nothing a visitor could do with
+  // a selection, and the bar it summons acts on the vault.
+  const selecting = useSelectionStore((s) => s.active) && !readOnly;
+  const selected = useIsSelected(m.id) && !readOnly;
+  const toggle = useSelectionStore((s) => s.toggle);
 
   // An uploaded picture becomes the banner, exactly like a scraped still: same wash, same
   // fallback, same pill treatment for the badges over it. A scraped still still wins where
@@ -85,14 +110,36 @@ export function MemoryCard({ m, compact = false }: { m: Memory; compact?: boolea
 
   return (
     <div ref={viewRef} className="group block break-inside-avoid">
-      <Card className={`card-soft card-lift relative overflow-hidden ${cardReset}`}>
-        {/* Full-card navigation target. Kept as a sibling overlay so the hover
-            actions below stay real buttons instead of nested inside an <a>. */}
-        <Link
-          href={`/memory/${m.id}`}
-          aria-label={m.title}
-          className="absolute inset-0 z-10 rounded-[calc(var(--radius)+4px)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        />
+      <Card
+        className={`card-soft card-lift relative overflow-hidden ${cardReset} ${
+          selected ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
+        }`}
+      >
+        {/* One overlay, three modes. Kept as a sibling of the content so the hover
+            actions below stay real buttons instead of nested inside an <a>.
+
+            While picking, the card must not navigate -- tapping it is the choice. The
+            control is a real checkbox rather than a styled div so it is announced,
+            focusable and toggled by Space like every other checkbox on the platform. */}
+        {selecting ? (
+          <label className="absolute inset-0 z-10 cursor-pointer rounded-[calc(var(--radius)+4px)] focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary">
+            <input
+              type="checkbox"
+              className="sr-only"
+              checked={selected}
+              onChange={() => toggle(m.id)}
+            />
+            <span className="sr-only">{m.title}</span>
+          </label>
+        ) : (
+          !readOnly && (
+            <Link
+              href={`/memory/${m.id}`}
+              aria-label={m.title}
+              className="absolute inset-0 z-10 rounded-[calc(var(--radius)+4px)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            />
+          )
+        )}
         <MemoryBanner
           cover={cover}
           accent={m.accent}
@@ -107,8 +154,27 @@ export function MemoryCard({ m, compact = false }: { m: Memory; compact?: boolea
             <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
             {meta.label}
           </Badge>
+          {/* The state of the checkbox above, drawn. `aria-hidden` because the input
+              already announces it -- two announcements for one control is worse than
+              none. Sits where the hover actions do, which are hidden while picking. */}
+          {selecting && (
+            <span
+              aria-hidden
+              className={`absolute right-2.5 top-2.5 z-20 grid size-8 place-items-center rounded-full border shadow-sm transition-colors ${
+                selected
+                  ? "border-primary bg-primary text-white"
+                  : "border-white/80 bg-white/95 text-transparent"
+              }`}
+            >
+              <Check className="size-4" />
+            </span>
+          )}
           {/* Always visible on touch, revealed on hover/focus on pointer devices */}
-          <div className="absolute right-2.5 top-2.5 z-20 flex gap-3 opacity-100 transition-opacity focus-within:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+          <div
+            className={`absolute right-2.5 top-2.5 z-20 flex gap-3 opacity-100 transition-opacity focus-within:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 ${
+              selecting || readOnly ? "hidden" : ""
+            }`}
+          >
             <Button
               variant="ghost"
               size="icon-sm"
@@ -121,6 +187,17 @@ export function MemoryCard({ m, compact = false }: { m: Memory; compact?: boolea
             >
               <Heart className="relative size-3.5" fill={favorited ? "currentColor" : "none"} />
             </Button>
+            {onAddToSpace && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Add ${m.title} to a space`}
+                onClick={() => onAddToSpace(m.id)}
+                className="relative size-8 rounded-full bg-white/95 text-muted-foreground shadow-sm before:absolute before:-inset-1.5 before:content-[''] hover:bg-white hover:text-primary"
+              >
+                <Plus className="relative size-3.5" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon-sm"

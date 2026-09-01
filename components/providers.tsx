@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CaptureProvider } from "@/components/capture-sheet";
 import { CommandPaletteProvider } from "@/components/command-palette";
+import { AddToSpaceProvider } from "@/components/add-to-space";
 import { useHydrateStores } from "@/hooks/use-hydrate-stores";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -23,11 +24,13 @@ export function Providers({ children }: { children: ReactNode }) {
     <TooltipProvider delay={300}>
     <CaptureProvider>
       <CommandPaletteProvider>
+      <AddToSpaceProvider>
         {children}
         {/* Surface and placement live in `components/ui/toast.tsx`. Kept out of here so
             there is one source of truth — a second config in this file used to override
             it silently. */}
         <Toaster />
+      </AddToSpaceProvider>
       </CommandPaletteProvider>
     </CaptureProvider>
     </TooltipProvider>

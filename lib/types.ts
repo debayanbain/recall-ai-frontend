@@ -140,3 +140,73 @@ export type TelegramLinkResponse = {
   expires_in: number;
   expires_at: string;
 };
+
+// --- Spaces -------------------------------------------------------------------------
+
+export type Visibility = "private" | "unlisted" | "public";
+
+/** Least privilege first, matching the backend's `SpaceRole`. */
+export type SpaceRole = "viewer" | "editor" | "owner";
+
+export type SpaceMember = {
+  user_id: string;
+  name: string | null;
+  avatar_url: string | null;
+  role: SpaceRole;
+};
+
+export type Space = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  visibility: Visibility;
+  /** One or two glyphs, chosen by the owner. Null until they pick one. */
+  emoji: string | null;
+  /**
+   * An accent *key* ("violet", "rose", …), never a CSS class — the gradient strings live
+   * in `lib/space-accent.ts`. Null falls back to a hash of the id, so a Space nobody has
+   * styled still looks deliberate.
+   */
+  accent: string | null;
+  pinned: boolean;
+  /** Model-written, and labelled as such wherever it is rendered. */
+  ai_overview: string | null;
+  ai_topics: string[];
+  created_at: string;
+  /** The viewer's own role. Hiding a control is a courtesy; the server refuses anyway. */
+  role: SpaceRole;
+  memory_count: number;
+  member_count: number;
+  /**
+   * Null means "never computed", which renders as nothing rather than as zero — "no
+   * connections" and "not measured" are different claims and only one of them is true.
+   */
+  connection_count: number | null;
+};
+
+export type SpaceDetail = Space & {
+  items: VaultItem[];
+  members: SpaceMember[];
+};
+
+/** What `POST /spaces/{id}/items` reports back. Re-adding is `skipped`, not an error. */
+export type AddItemsResponse = { added: number; skipped: number };
+
+export type SpaceInvite = {
+  /** Single-use. Treat it as a credential: anyone holding it can join until it is spent. */
+  url: string;
+  role: SpaceRole;
+  expires_at: string;
+};
+
+/** The unauthenticated share page. Deliberately narrower than `Space`. */
+export type PublicSpace = {
+  name: string;
+  description: string | null;
+  emoji: string | null;
+  accent: string | null;
+  ai_overview: string | null;
+  items: VaultItem[];
+};
+

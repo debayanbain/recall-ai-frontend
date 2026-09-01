@@ -49,12 +49,13 @@ sets an HttpOnly `recall_session` cookie; nothing auth-related is readable from 
 `lib/query-keys.ts`. `useSession()` resolves a 401 to `null` rather than throwing, since signed
 out is an answer, not a failure.
 
-**The vault is on the real API; everything else is still mock.** `/vault` renders
+**The vault and Spaces are on the real API; timeline, chat and connections are still
+mock.** `/vault` renders
 `useVaultItems()` through `lib/vault-adapter.ts`, which maps a `VaultItem` onto the `Memory`
 shape the cards already speak — the enums differ on purpose (the API discriminates by *source*,
 the UI by *medium*), so the mapping is lossy. `MemoryGrid` takes an optional `items` prop and
-falls back to the local store when it is omitted, which is what spaces/timeline/chat/share
-still use. A fresh item legitimately has no summary until the worker runs, so the adapter
+falls back to the local store when it is omitted, which is what timeline and chat still
+use. Spaces and the public share page pass real items through the same adapter. A fresh item legitimately has no summary until the worker runs, so the adapter
 supplies status-aware placeholder copy.
 
 **Every kind in the capture modal reaches the real API**, and which fields a kind shows is
@@ -172,6 +173,65 @@ Three things there are deliberate:
   `complete && naturalWidth === 0` is an image that already failed.
 - **Only `http(s)` reaches `src`.** `thumbnail_url` comes from a scraped meta tag, so a
   `javascript:` or `data:` value is treated as "no cover" rather than handed to the browser.
+
+## Spaces
+
+**Spaces are real; the AI half of them is not yet.** `/spaces`, `/spaces/[id]`,
+`/share/[slug]`, the pinned-spaces sidebar group and the palette's Spaces group all read
+`hooks/use-spaces.ts`. The Overview, Connections and Ask AI panels render **honest empty
+states** rather than placeholder content — the backend has no proposal, connection graph
+or space-scoped ask yet, and a mock panel next to real data is how a demo becomes a
+promise. `lib/mock-data.ts`'s `spaces` fixture survives for one consumer only, `/mobile`,
+which is a static design reference; its shape deliberately does not match `Space`.
+
+- **`accent` is a key, not a class.** The API sends `"violet"`; `lib/space-accent.ts` maps
+  it to gradient classes, written out in full because Tailwind scans source text for
+  literals and `from-${c}-200` never reaches the stylesheet. An unset or unrecognised
+  accent falls back to a hash of the id, so a wall of unstyled spaces still reads as
+  distinct cards. Same hash trick as `lib/vault-adapter.ts` uses for card heights, and for
+  the same reason: `Math.random()` would disagree with the server HTML and React would
+  throw away the tree.
+- **`connection_count: null` renders as nothing, never as `0`.** "No connections" and "not
+  measured" are different claims and only one of them is currently true. The same applies
+  to collaborators: the count appears only when there is more than one member.
+- **`/share/[slug]` is the one page fetched on the server** (`lib/public-api.ts`,
+  `import "server-only"`). It exists to be opened by strangers and read by crawlers, so
+  the content has to be in the HTML — and the endpoint behind it is the only
+  unauthenticated one in the API, which is what makes that safe: there is no session
+  cookie to lose to a cross-origin hop. Everything else still goes through `lib/api.ts`.
+  The public view is deliberately smaller than the owner's: no Ask AI (a stranger must not
+  spend the owner's model budget), no members, no navigation into `/memory/{id}`, which
+  would 404 for them anyway. `MemoryCard` takes `readOnly` for exactly that.
+- **Writes to `/api/v1/spaces/*` are Origin-checked server-side.** Browsing
+  `http://localhost:3000` while the backend's `CORS_ORIGINS` is a tunnel gets a **403 on
+  every space mutation** while reads and the whole vault keep working. That is the
+  backend guard doing its job (auth and integrations behave the same way) — browse the
+  tunnel URL, or add localhost to `CORS_ORIGINS`.
+
+**Selection mode** (`lib/stores/selection-store.ts`) is zustand and **not persisted**, for
+the reason the UI store gives for modals: a selection restored a day later would greet the
+user with a bulk action bar naming five memories they do not remember choosing. Three
+things about it are load-bearing:
+
+- **The card's overlay has three modes.** Not picking: the whole-card `<Link>`. Picking: a
+  real `<input type="checkbox">` inside a full-card `<label>`, so it is announced,
+  focusable and toggled by Space — and the link is *not rendered*, because a card that
+  navigates while you are choosing is a card you cannot choose. Read-only: neither.
+- **The bar replaces the bottom nav on a phone** rather than stacking above it
+  (`AppShell` hides `BottomNav` while `selecting`). Two fixed bars plus the raised capture
+  button on a 375px screen leaves about four fingers of list. Escape exits; focus moves to
+  the bar the first time it appears and not on every subsequent pick.
+- **Selection is disabled while `duplicateForDensity` is padding the mock library**, which
+  repeats items under a `${id}-${i}` key — one tap would select two cards and the count
+  would be a lie.
+
+**"Add to space" must work with the model switched off.** The proposal block is an
+enhancement at the top of `components/add-to-space.tsx`; the space list and the manual
+create form below it are the feature. Checkmarks are shown for a *single* memory only
+(via `GET /spaces/for-item/{id}`) — knowing whether a space already holds all of a
+twenty-item selection would be twenty lookups, and adding is idempotent anyway, so the
+multi-select path adds and reports `added`/`skipped` instead of claiming something it has
+not checked.
 
 ## Connected accounts (integrations)
 

@@ -33,7 +33,8 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { useStore } from "@/lib/store";
-import { spaces, kindMeta } from "@/lib/mock-data";
+import { useSpaces } from "@/hooks/use-spaces";
+import { kindMeta } from "@/lib/mock-data";
 
 type Command = {
   id: string;
@@ -69,6 +70,9 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
   const { memories } = useStore();
+  // Spaces are real. Memories in this palette are still the local store -- searching the
+  // vault for real needs the search endpoint, which is its own piece of work.
+  const { data: spaces } = useSpaces();
   const open = useCallback(() => setIsOpen(true), []);
   const value = useMemo(() => ({ open }), [open]);
 
@@ -84,11 +88,11 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const groups = useMemo(() => {
-    const spaceCommands: Command[] = spaces.map((s) => ({
+    const spaceCommands: Command[] = (spaces ?? []).map((s) => ({
       id: `s-${s.id}`,
-      label: s.title,
-      hint: `${s.memoryCount} memories`,
-      keywords: s.summary,
+      label: s.name,
+      hint: `${s.memory_count} ${s.memory_count === 1 ? "memory" : "memories"}`,
+      keywords: s.ai_overview ?? s.description ?? "",
       icon: Layers,
       href: `/spaces/${s.id}`,
     }));
@@ -102,10 +106,12 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
     }));
     return [
       { heading: "Go to", items: pageCommands },
-      { heading: "Spaces", items: spaceCommands },
+      // An empty group renders as a bare heading, which reads as "you have no spaces"
+      // even while they are still loading.
+      ...(spaceCommands.length ? [{ heading: "Spaces", items: spaceCommands }] : []),
       { heading: "Memories", items: memoryCommands },
     ];
-  }, [memories]);
+  }, [memories, spaces]);
 
   const go = useCallback(
     (href: string) => {
