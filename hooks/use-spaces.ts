@@ -8,6 +8,7 @@ import type {
   AddItemsResponse,
   Space,
   SpaceDetail,
+  SpaceConnection,
   SpaceInvite,
   SpaceRole,
   Visibility,
@@ -48,6 +49,24 @@ export function useSpace(id: string | undefined) {
       )
         ? 5_000
         : false,
+  });
+}
+
+/**
+ * Your own connections between memories in one space.
+ *
+ * Only yours — the API does not return other members'. A connection is a judgement its
+ * author made, so the panel says whose graph it is rather than letting anyone assume it
+ * is the space's.
+ */
+export function useSpaceConnections(id: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.spaces.connections(id ?? ""),
+    queryFn: () =>
+      apiFetch<{ connections: SpaceConnection[]; total: number }>(
+        `/spaces/${encodeURIComponent(id!)}/connections`,
+      ),
+    enabled: Boolean(id),
   });
 }
 

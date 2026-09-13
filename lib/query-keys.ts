@@ -12,6 +12,17 @@ export const queryKeys = {
     detail: (id: string) => ["spaces", "detail", id] as const,
     /** Which of my Spaces already hold this memory — drives the card's + menu. */
     forItem: (itemId: string) => ["spaces", "for-item", itemId] as const,
+    /** Your own connections between memories in one space. */
+    connections: (id: string) => ["spaces", "connections", id] as const,
+  },
+  connections: {
+    all: ["connections"] as const,
+    /** One memory's neighbourhood. */
+    forItem: (itemId: string) => ["connections", "for-item", itemId] as const,
+    /** The undecided edges, which are per *user* and not per memory. */
+    suggestions: ["connections", "suggestions"] as const,
+    /** The most-connected memories — what the page opens on with no memory named. */
+    hubs: ["connections", "hubs"] as const,
   },
   vault: {
     all: ["vault"] as const,

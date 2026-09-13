@@ -189,6 +189,23 @@ export type Space = {
   connection_count: number | null;
 };
 
+/**
+ * One edge between two memories in a Space, with both ends.
+ *
+ * The API returns **only your own** edges. A connection is a judgement its author made
+ * about their own memories, so two members see the same space with different graphs —
+ * see the panel copy, which says so rather than letting people assume otherwise.
+ */
+export type SpaceConnection = {
+  id: string;
+  relation: Relation;
+  note: string | null;
+  ai_reason: string | null;
+  created_at: string;
+  source: VaultItem;
+  target: VaultItem;
+};
+
 export type SpaceDetail = Space & {
   items: VaultItem[];
   members: SpaceMember[];
@@ -215,4 +232,88 @@ export type PublicSpace = {
   accent: string | null;
   ai_overview: string | null;
   items: VaultItem[];
+};
+
+// --- Connections --------------------------------------------------------------------
+
+/**
+ * How one memory relates to another. Eight keys, matching the backend's `Relation`.
+ *
+ * `related_to` is the weakest claim and doubles as the "Other" of this vocabulary: a
+ * derived edge is always this one, because a cosine distance says two memories are
+ * *close* and nothing more. Anything stronger was chosen by a person.
+ */
+export type Relation =
+  | "related_to"
+  | "expands"
+  | "supports"
+  | "contradicts"
+  | "inspired_by"
+  | "depends_on"
+  | "example_of"
+  | "part_of";
+
+/** Who drew the edge. Only ever a thing to render — never an input to a decision. */
+export type ConnectionOrigin = "user" | "ai";
+
+export type ConnectionStatus = "suggested" | "confirmed" | "dismissed";
+
+/**
+ * Which way round the edge runs, **relative to the memory you asked about**. The same
+ * stored row is `outgoing` from one of its two memories and `incoming` from the other,
+ * and both readings are true — which is why the label has to be looked up per direction.
+ */
+export type ConnectionDirection = "outgoing" | "incoming";
+
+export type MemoryConnection = {
+  id: string;
+  relation: Relation;
+  direction: ConnectionDirection;
+  origin: ConnectionOrigin;
+  status: ConnectionStatus;
+  /**
+   * The similarity a derived edge was drawn at, 0..1. Null for a hand-made one, and the
+   * UI shows nothing rather than a zero — "not measured" and "not similar" are different
+   * claims, the same distinction `Space.connection_count` draws.
+   */
+  score: number | null;
+  /** The person's own words. */
+  note: string | null;
+  /** Model-written. Render it marked as such; never style it like `note`. */
+  ai_reason: string | null;
+  created_at: string;
+  /** The other end, as a card. Never the body — the API does not send one. */
+  memory: VaultItem;
+};
+
+export type ConnectionNeighbourhood = {
+  focus: VaultItem;
+  connections: MemoryConnection[];
+  total: number;
+};
+
+/**
+ * An edge nobody has accepted yet. Carries *both* of its memories, unlike
+ * `MemoryConnection`: a suggestion is read from an inbox rather than from one memory's
+ * page, so there is no "the one you asked about" for the other end to be relative to.
+ */
+export type ConnectionSuggestion = {
+  id: string;
+  relation: Relation;
+  score: number | null;
+  ai_reason: string | null;
+  created_at: string;
+  source: VaultItem;
+  target: VaultItem;
+};
+
+/** A memory and how many things connect to it. */
+export type ConnectionHub = {
+  memory: VaultItem;
+  connection_count: number;
+};
+
+export type ConnectionSuggestionList = {
+  suggestions: ConnectionSuggestion[];
+  total: number;
 };

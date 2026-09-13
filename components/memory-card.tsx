@@ -287,7 +287,25 @@ export function MemoryCard({
   );
 }
 
-export function MemoryRow({ m }: { m: Memory }) {
+/**
+ * A row owns its own full-bleed link, so a caller must never wrap one in another
+ * `<Link>` -- nested anchors are invalid HTML and React reports it as a hydration error.
+ * A caller that wants the row to go somewhere else passes `href` instead.
+ */
+export function MemoryRow({
+  m,
+  href,
+  label,
+}: {
+  m: Memory;
+  /** Where the row goes. Defaults to the memory's own page. */
+  href?: string;
+  /** What a screen reader hears. Defaults to the title, which is right when the row
+   *  opens the memory and wrong when `href` sends it anywhere else -- "Building a Second
+   *  Brain" read aloud for a link that actually opens a connections map describes the
+   *  destination incorrectly. */
+  label?: string;
+}) {
   const Icon = kindIcon[m.kind];
   const meta = kindMeta[m.kind];
   const { favorites } = useStore();
@@ -313,8 +331,8 @@ export function MemoryRow({ m }: { m: Memory }) {
       className={`${cardReset} group relative flex-row items-center gap-3 rounded-2xl border border-border p-3 transition-colors hover:border-primary/25 sm:gap-4 sm:p-3.5`}
     >
       <Link
-        href={`/memory/${m.id}`}
-        aria-label={m.title}
+        href={href ?? `/memory/${m.id}`}
+        aria-label={label ?? m.title}
         className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       />
       <div

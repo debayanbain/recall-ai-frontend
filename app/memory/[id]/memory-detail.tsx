@@ -37,6 +37,8 @@ import { HighlightedText } from "@/components/highlighted-text";
 import { ContentEditor } from "@/components/content-editor";
 import { RichContent } from "@/components/rich-content";
 import { MemoryBanner } from "@/components/memory-banner";
+import { useConnections } from "@/hooks/use-connections";
+import { relationLabel, relationStyle } from "@/lib/connection-style";
 import { FilePlaque, useAttachmentCover } from "@/components/attachment-preview";
 import { MemoryCard } from "@/components/memory-card";
 import { VoiceHero, hasAudio } from "@/components/voice-hero";
@@ -46,7 +48,7 @@ import { TranscriptControls } from "@/components/transcript-controls";
 import { VideoReadControls } from "@/components/video-read-controls";
 import { useCapture } from "@/components/capture-sheet";
 import { useSession } from "@/hooks/use-auth";
-import { useDeleteVaultItem, useFileLink, useVaultItem, useVaultItems } from "@/hooks/use-vault";
+import { useDeleteVaultItem, useFileLink, useVaultItem } from "@/hooks/use-vault";
 import { ApiError } from "@/lib/api";
 import { toMemories, toMemory } from "@/lib/vault-adapter";
 import { readerDocument } from "@/lib/editor-doc";
@@ -147,11 +149,18 @@ export function MemoryDetail({ id }: { id: string }) {
   const [editing, setEditing] = useState(false);
   const [question, setQuestion] = useState("");
 
-  // Neighbours for the "Related" rail. Same list the vault renders, minus this item.
-  const { data: list } = useVaultItems({ limit: 12 });
+  // Real connections, not neighbours. This used to be `useVaultItems({ limit: 12 })` minus
+  // this item, sliced to three -- three arbitrary recent saves presented as relations,
+  // which is a picture of data that did not exist, and a whole extra vault page fetched on
+  // every memory open to draw it.
+  const { data: neighbourhood } = useConnections(id);
+  const connections = useMemo(
+    () => (neighbourhood?.connections ?? []).slice(0, 3),
+    [neighbourhood],
+  );
   const related = useMemo(
-    () => toMemories((list?.items ?? []).filter((i) => i.id !== id)).slice(0, 3),
-    [list, id],
+    () => toMemories(connections.map((c) => c.memory)),
+    [connections],
   );
 
   // Arming the delete is a state the user must be able to leave without committing to it.
@@ -627,12 +636,32 @@ export function MemoryDetail({ id }: { id: string }) {
 
           {related.length > 0 && (
             <div>
-              <div className="mb-3 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Related memories
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Connected memories
+                </div>
+                {(neighbourhood?.total ?? 0) > related.length && (
+                  <Link
+                    href={`/connections?memory=${encodeURIComponent(id)}`}
+                    className="text-[12px] font-semibold text-primary hover:underline"
+                  >
+                    See all {neighbourhood?.total} &rarr;
+                  </Link>
+                )}
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                {related.map((m) => (
-                  <MemoryCard key={m.id} m={m} compact />
+                {connections.map((connection, index) => (
+                  <div key={connection.id} className="flex flex-col gap-1.5">
+                    <Badge
+                      className={`w-fit gap-1.5 rounded-md px-2 py-0.5 text-[10.5px] font-medium tracking-normal normal-case ring-1 ${relationStyle[connection.relation].chip}`}
+                    >
+                      <span
+                        className={`size-1.5 rounded-full ${relationStyle[connection.relation].dot}`}
+                      />
+                      {relationLabel(connection.relation, connection.direction)}
+                    </Badge>
+                    <MemoryCard m={related[index]} compact />
+                  </div>
                 ))}
               </div>
             </div>

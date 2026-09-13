@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Background,
@@ -18,29 +18,34 @@ import {
   type EdgeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Link2, Play } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  focusHref,
-  graphNodes,
-  nodeStyle,
-  relStyle,
-  type GraphNode,
-  type RelKind,
-} from "./graph-data";
+import { fittedRadii, radialLayout } from "@/lib/connection-layout";
+import { relationStyle } from "@/lib/connection-style";
+import { toMemory } from "@/lib/vault-adapter";
+import type { Relation, VaultItem } from "@/lib/types";
+import type { MemoryKind } from "@/lib/mock-data";
+import { nodeStyle, type GraphNode } from "./graph-data";
 
 /** Card sizes drive both the layout and React Flow's own measurements. */
-const MEMORY_SIZE = { width: 210, height: 96 };
-const FOCUS_SIZE = { width: 300, height: 132 };
+//: Both of these are a *fixed* height that React Flow also measures for layout, so they
+//: have to be at least as tall as the card's own content -- a card shorter than its text
+//: does not scroll or grow, it clips mid-word. Measured from the padding and line boxes
+//: below: a memory card is 28 (p-3.5) + 28 (badge row) + 10 (mt-2.5) + 37 (two clamped
+//: lines at 13.5px) = 103, and the focus card is 32 + 36 + 12 + 50 + 8 + 16 = 154. Both
+//: were under that and both clipped. If you change the padding or the type scale inside
+//: either node, re-add it up.
+const MEMORY_SIZE = { width: 210, height: 108 };
+const FOCUS_SIZE = { width: 300, height: 168 };
 
 type MemoryNodeData = {
   node: GraphNode;
   dim: boolean;
   onHover: (id: string | null) => void;
 };
-type FocusNodeData = { title: string; count: number };
-type RelEdgeData = { rel: RelKind; dim: boolean };
+type FocusNodeData = { title: string; count: number; href: string; kind: MemoryKind };
+type RelEdgeData = { relation: Relation; label: string; dim: boolean };
 
 type MemoryFlowNode = Node<MemoryNodeData, "memory">;
 type FocusFlowNode = Node<FocusNodeData, "focus">;
@@ -71,7 +76,8 @@ function NodeHandles() {
 
 function MemoryNode({ data }: NodeProps<MemoryFlowNode>) {
   const { node, dim, onHover } = data;
-  const style = nodeStyle[node.memory.kind];
+  const memory = toMemory(node.item);
+  const style = nodeStyle[memory.kind];
 
   return (
     <div
@@ -82,7 +88,7 @@ function MemoryNode({ data }: NodeProps<MemoryFlowNode>) {
       <Card className="h-full gap-0 rounded-2xl border border-border/70 py-0 shadow-[0_10px_30px_-18px_rgba(15,23,42,0.25)] ring-0 transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-18px_rgba(15,23,42,0.3)]">
         <Link
           href={node.href}
-          aria-label={`Open memory: ${node.memory.title}`}
+          aria-label={`Open memory: ${memory.title}`}
           onMouseEnter={() => onHover(node.id)}
           onMouseLeave={() => onHover(null)}
           onFocus={() => onHover(node.id)}
@@ -100,8 +106,11 @@ function MemoryNode({ data }: NodeProps<MemoryFlowNode>) {
                 {style.label}
               </Badge>
             </div>
-            <div className="mt-2.5 line-clamp-2 text-[13.5px] font-semibold leading-snug tracking-tight">
-              {node.memory.title}
+            <div
+              title={memory.title}
+              className="mt-2.5 line-clamp-2 text-[13.5px] font-semibold leading-snug tracking-tight"
+            >
+              {memory.title}
             </div>
           </CardContent>
         </Link>
@@ -111,30 +120,40 @@ function MemoryNode({ data }: NodeProps<MemoryFlowNode>) {
 }
 
 function FocusNode({ data }: NodeProps<FocusFlowNode>) {
+  const style = nodeStyle[data.kind];
   return (
     <div style={FOCUS_SIZE}>
       <NodeHandles />
       <Card className="h-full gap-0 rounded-2xl border-2 border-primary/70 py-0 shadow-[0_20px_60px_-20px_oklch(0.55_0.19_285/0.35)] ring-0 transition-shadow duration-200 hover:shadow-[0_24px_70px_-20px_oklch(0.55_0.19_285/0.45)]">
         <Link
-          href={focusHref}
+          href={data.href}
           aria-label={`Open memory: ${data.title}`}
           className="block h-full rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
         <CardContent className="p-4">
           <div className="flex items-center gap-2.5">
-            <span className="grid size-9 place-items-center rounded-xl bg-rose-50 text-rose-500">
-              <Play className="size-4" fill="currentColor" />
+            <span className={`grid size-9 place-items-center rounded-xl ${style.tone}`}>
+              <style.icon className="size-4" />
             </span>
-            <Badge className="rounded-none px-0 font-mono text-[11px] tracking-wider text-rose-500">
+            <Badge className="rounded-none px-0 font-mono text-[11px] tracking-wider text-primary">
               Focus
             </Badge>
           </div>
-          <div className="mt-3 text-[18px] font-semibold leading-snug tracking-tight">
+          {/* Clamped, with the full text on hover. An Instagram caption is a paragraph,
+              and this card is 300px wide with a fixed height -- unclamped it ran straight
+              through the bottom edge and took the count line with it. `truncation-strategy`:
+              ellipsis, never a hard cut, and the whole string still reachable. */}
+          <div
+            title={data.title}
+            className="mt-3 line-clamp-2 text-[18px] font-semibold leading-snug tracking-tight"
+          >
             {data.title}
           </div>
           <div className="mt-2 flex items-center gap-1.5 text-[12px] text-muted-foreground">
             <Link2 className="size-3.5 shrink-0 text-primary" />
-            <span>{data.count} connected memories</span>
+            <span>
+              {data.count} connected {data.count === 1 ? "memory" : "memories"}
+            </span>
           </div>
         </CardContent>
         </Link>
@@ -161,7 +180,7 @@ function RelEdge({
     targetPosition,
     curvature: 0.35,
   });
-  const rel = relStyle[data?.rel ?? "related"];
+  const rel = relationStyle[data?.relation ?? "related_to"];
   const dim = data?.dim ?? false;
 
   return (
@@ -183,7 +202,7 @@ function RelEdge({
           <Badge
             className={`rounded-md px-2 py-0.5 font-mono text-[11px] tracking-normal normal-case ring-1 ${rel.chip}`}
           >
-            {rel.label}
+            {data?.label ?? rel.outgoing}
           </Badge>
         </div>
       </EdgeLabelRenderer>
@@ -194,9 +213,36 @@ function RelEdge({
 const nodeTypes: NodeTypes = { memory: MemoryNode, focus: FocusNode };
 const edgeTypes: EdgeTypes = { rel: RelEdge };
 
-export function ConnectionGraph({ centerTitle }: { centerTitle: string }) {
+export function ConnectionGraph({
+  focus,
+  nodes: placed,
+}: {
+  focus: VaultItem;
+  nodes: GraphNode[];
+}) {
   const [hovered, setHovered] = useState<string | null>(null);
   const onHover = useCallback((id: string | null) => setHovered(id), []);
+  const focusMemory = toMemory(focus);
+
+  // Measured, not assumed. The ring's radii come from the real canvas so `fitView` never
+  // has to zoom the cards down to fit -- see `fittedRadii`.
+  const box = useRef<HTMLDivElement>(null);
+  const [canvas, setCanvas] = useState({ width: 1200, height: 600 });
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) setCanvas({ width, height });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const layout = useMemo(
+    () => radialLayout(placed.length, fittedRadii(canvas, MEMORY_SIZE)),
+    [placed.length, canvas],
+  );
 
   const nodes = useMemo<FlowNode[]>(
     () => [
@@ -204,37 +250,54 @@ export function ConnectionGraph({ centerTitle }: { centerTitle: string }) {
         id: "focus",
         type: "focus",
         position: { x: -FOCUS_SIZE.width / 2, y: -FOCUS_SIZE.height / 2 },
-        data: { title: centerTitle, count: graphNodes.length },
+        data: {
+          title: focusMemory.title,
+          count: placed.length,
+          href: `/memory/${focus.id}`,
+          kind: focusMemory.kind,
+        },
         ...FOCUS_SIZE,
       },
-      ...graphNodes.map<MemoryFlowNode>((node) => ({
+      ...placed.map<MemoryFlowNode>((node, index) => ({
         id: node.id,
         type: "memory",
-        position: node.position,
+        position: layout[index].position,
         data: { node, dim: hovered !== null && hovered !== node.id, onHover },
         ...MEMORY_SIZE,
       })),
     ],
-    [centerTitle, hovered, onHover],
+    [focus.id, focusMemory.kind, focusMemory.title, hovered, layout, onHover, placed],
   );
 
   const edges = useMemo<RelFlowEdge[]>(
     () =>
-      graphNodes.map((node) => ({
+      placed.map((node, index) => ({
         id: `${node.id}-focus`,
         type: "rel",
         source: node.id,
         target: "focus",
-        sourceHandle: `source-${node.from}`,
-        targetHandle: `target-${node.to}`,
-        data: { rel: node.rel, dim: hovered !== null && hovered !== node.id },
+        sourceHandle: `source-${layout[index].from}`,
+        targetHandle: `target-${layout[index].to}`,
+        data: {
+          relation: node.connection.relation,
+          label: node.label,
+          dim: hovered !== null && hovered !== node.id,
+        },
       })),
-    [hovered],
+    [hovered, layout, placed],
   );
 
   return (
-    <div className="relative hidden h-150 overflow-hidden rounded-[28px] border border-border/70 bg-card md:block lg:h-180">
+    <div
+      ref={box}
+      className="relative hidden h-150 overflow-hidden rounded-[28px] border border-border/70 bg-card md:block lg:h-180"
+    >
       <ReactFlow
+        // Keyed on the node count and a coarse width bucket, so a confirm, a dismiss or a
+        // real window resize remounts the canvas and re-runs `fitView` -- the prop fits
+        // once, on init, and the layout changes with both. Bucketed rather than exact so
+        // dragging a window edge does not remount on every pixel.
+        key={`${placed.length}-${Math.round(canvas.width / 120)}`}
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}

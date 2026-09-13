@@ -81,11 +81,18 @@ export function useAttachmentCover(memory: { id: string; file?: Memory["file"] }
   // background tab comes back holding a dead link. One silent re-mint covers that; a
   // second failure is a real one -- the object is gone, or these bytes are not an image
   // this browser can decode -- and is left to the banner's own fallback.
+  //
+  // `displayable` is checked again here, and it is not redundant. The banner reports a
+  // failed *scraped* still through this same handler, and a link memory has no stored
+  // file to re-mint -- while `refetch` ignores `enabled`, so the guarded query fires
+  // anyway. Instagram and Facebook `og:image` URLs are signed and expire in about a
+  // week, so once a vault was old enough every link card mounted, failed its cover and
+  // spent a request on `GET /vault/{id}/file` to be told 404.
   const onImageError = useCallback(() => {
-    if (remintedRef.current) return;
+    if (!displayable || remintedRef.current) return;
     remintedRef.current = true;
     void refetch();
-  }, [refetch]);
+  }, [displayable, refetch]);
 
   return {
     ref,

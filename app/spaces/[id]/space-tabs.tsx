@@ -11,8 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MemoryCard } from "@/components/memory-card";
-import { toMemories } from "@/lib/vault-adapter";
+import { MemoryCard, MemoryRow } from "@/components/memory-card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useSpaceConnections } from "@/hooks/use-spaces";
+import { relationLabel, relationStyle } from "@/lib/connection-style";
+import { toMemories, toMemory } from "@/lib/vault-adapter";
 import { enterSelection } from "@/lib/stores/selection-store";
 import { fadeUp, motionVariants, transition } from "@/lib/motion";
 import type { Memory } from "@/lib/mock-data";
@@ -24,6 +27,70 @@ const plain = "rounded-xl tracking-normal normal-case";
 const softCard = "card-soft gap-0 rounded-[calc(var(--radius)+4px)] py-0 shadow-none ring-0";
 const tabTrigger =
   "flex-none px-3 py-3 text-[13px] font-medium tracking-normal text-muted-foreground normal-case hover:text-foreground data-active:bg-transparent data-active:text-foreground group-data-horizontal/tabs:after:inset-x-2 group-data-horizontal/tabs:after:bottom-0 group-data-horizontal/tabs:after:h-0.5 group-data-horizontal/tabs:after:rounded-full after:hidden sm:px-4";
+
+function SpaceConnectionsPanel({ spaceId }: { spaceId: string }) {
+  const { data, isLoading, isError } = useSpaceConnections(spaceId);
+  const rows = useMemo(
+    () =>
+      (data?.connections ?? []).map((c) => ({
+        ...c,
+        left: toMemory(c.source),
+        right: toMemory(c.target),
+      })),
+    [data?.connections],
+  );
+
+  if (isLoading) {
+    return (
+      <div aria-busy="true" aria-label="Loading connections" className="flex flex-col gap-3">
+        {[0, 1].map((i) => (
+          <Skeleton key={i} className="h-24 w-full rounded-2xl" />
+        ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <EmptyPanel
+        title="We couldn't load your connections"
+        body="Your connections are saved — this is just the panel failing to load."
+      />
+    );
+  }
+
+  if (!rows.length) {
+    return (
+      <EmptyPanel
+        title="You haven't connected anything in here yet"
+        body="Open a memory in this space and connect it to another. You only ever see your own connections — everyone in a space keeps their own map."
+      />
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-[12.5px] text-muted-foreground">
+        Your own connections between memories in this space. Other members keep their own.
+      </p>
+      <ul className="flex flex-col gap-4">
+        {rows.map((edge) => (
+          <li key={edge.id} className="flex flex-col gap-2">
+            <MemoryRow m={edge.left} />
+            <span className="flex items-center gap-1.5 pl-1 text-[11.5px] text-muted-foreground">
+              <span className={`size-1.5 rounded-full ${relationStyle[edge.relation].dot}`} />
+              {relationLabel(edge.relation, "outgoing")}
+            </span>
+            <MemoryRow m={edge.right} />
+            {edge.note && (
+              <span className="pl-1 text-[12px] text-muted-foreground">{edge.note}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function SpaceTabs({ space }: { space: SpaceDetail }) {
   const [tab, setTab] = useState<string>("Overview");
@@ -149,13 +216,13 @@ export function SpaceTabs({ space }: { space: SpaceDetail }) {
             value="Connections"
             render={<motion.div variants={panelVariants} initial="hidden" animate="show" />}
           >
-            {/* Derived from the memories' own embeddings, not stored — so until that runs
-                there is nothing honest to draw. A placeholder graph here would be a
-                picture of data that does not exist. */}
-            <EmptyPanel
-              title="Connections aren't mapped yet"
-              body="Recall finds these by comparing the memories in this space to each other. Nothing has been measured for this space so far."
-            />
+            {/* **Your own edges only**, and the copy says so. `memory_connections` has
+                no space_id and no member visibility, so showing everyone's would make
+                this the first place one member reads another's judgements — "A
+                contradicts B" is an opinion, not a fact about the space. Two members
+                therefore see this panel differently, which is the reversible direction:
+                widening later is a decision somebody can take deliberately. */}
+            <SpaceConnectionsPanel spaceId={space.id} />
           </TabsContent>
 
           <TabsContent

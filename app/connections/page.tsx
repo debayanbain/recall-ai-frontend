@@ -1,25 +1,29 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/app-shell";
-import { memories } from "@/lib/mock-data";
-import { ConnectionMap, RelationLegend } from "./connection-map";
+import { ConnectionView } from "./connection-view";
 
 export const metadata: Metadata = { title: "Connections · RecallAI" };
 
-export default function Connections() {
-  const center = memories.find((m) => m.id === "second-brain")!;
+/**
+ * `/connections?memory=<id>`.
+ *
+ * A search parameter rather than a route segment, because this is a top-level destination
+ * in the sidebar (`lib/nav.ts`) and a nav item whose path requires a UUID has no valid
+ * `href`. With no parameter the view offers a picker; it never invents a focus.
+ */
+export default async function Connections({
+  searchParams,
+}: {
+  searchParams: Promise<{ memory?: string }>;
+}) {
+  const { memory } = await searchParams;
 
   return (
     <AppShell
       title="Connections"
-      subtitle={
-        <>
-          How <span className="font-semibold text-primary">Building a Second Brain</span> relates to
-          the rest of your memory.
-        </>
-      }
-      actions={<RelationLegend />}
+      subtitle="How one memory relates to the rest of your vault."
     >
-      <ConnectionMap centerTitle={center.title.replace(/ with .*/, "")} />
+      <ConnectionView memoryId={memory} />
     </AppShell>
   );
 }
