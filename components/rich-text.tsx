@@ -1,7 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { segmentByHighlights } from "@/components/highlighted-text";
+import { runNodes as linkedRunNodes } from "@/components/highlighted-text";
+import { segmentByHighlights } from "@/lib/highlights";
 import { decodeEntities as decode, safeHref } from "@/lib/editor-doc";
 
 /**
@@ -48,7 +49,7 @@ const WRAPPERS: Record<string, (children: ReactNode, key: string) => ReactNode> 
 type Frame = { tag: string; attributes: string; children: ReactNode[] };
 
 /** Split a text run into plain and highlighted pieces, in reading order. */
-function runNodes(text: string, spans: string[], keyBase: string): ReactNode[] {
+function markNodes(text: string, spans: string[], keyBase: string): ReactNode[] {
   if (!text) return [];
   if (spans.length === 0) return [text];
   return segmentByHighlights(text, spans).map((segment, i) =>
@@ -67,6 +68,22 @@ function runNodes(text: string, spans: string[], keyBase: string): ReactNode[] {
   );
 }
 
+/**
+ * The same run with bare addresses turned into links.
+ *
+ * Suppressed inside an `<a>` the document already carries: a link nested in a link is
+ * invalid markup, and the inner one would silently win over the href the writer chose.
+ */
+function runNodes(
+  text: string,
+  spans: string[],
+  keyBase: string,
+  insideAnchor: boolean,
+): ReactNode[] {
+  if (insideAnchor) return markNodes(text, spans, keyBase);
+  return linkedRunNodes(text, spans, keyBase);
+}
+
 export function renderInline(markup: string, spans: string[] = []): ReactNode[] {
   const stack: Frame[] = [{ tag: "", attributes: "", children: [] }];
   let cursor = 0;
@@ -74,7 +91,10 @@ export function renderInline(markup: string, spans: string[] = []): ReactNode[] 
 
   const pushText = (raw: string) => {
     if (!raw) return;
-    stack[stack.length - 1].children.push(...runNodes(decode(raw), spans, `t${key++}`));
+    const insideAnchor = stack.some((frame) => frame.tag === "a");
+    stack[stack.length - 1].children.push(
+      ...runNodes(decode(raw), spans, `t${key++}`, insideAnchor),
+    );
   };
 
   const closeFrame = (frame: Frame): ReactNode => {

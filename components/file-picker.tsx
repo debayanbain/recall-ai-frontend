@@ -1,24 +1,28 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileText, UploadCloud, X } from "lucide-react";
 import type { UploadLimits } from "@/hooks/use-vault";
+import {
+  FALLBACK_MAX_BYTES,
+  formatSize,
+  isPreviewableImage,
+  rejectionFor,
+} from "@/lib/uploads";
 
 /**
  * Choose one file to capture.
  *
  * The drop zone is a real `<button>`, not a div with drag handlers: drag-and-drop is
  * unusable by keyboard and does not exist on touch, so the same surface opens the system
- * picker on click or Enter/Space.
+ * picker on click or Enter/Space. Pasting is handled a level up, in the capture form,
+ * because a paste is aimed at the whole sheet rather than at this button — see the
+ * `paste` listener there.
  *
  * What it accepts comes from the server (`GET /vault/uploads/limits`) rather than a
- * constant that drifts from the backend's allowlist. Both checks here are conveniences —
- * the server re-decides the type from the file's *bytes* and re-enforces the size cap by
- * reading one byte past it — but a 25MB round trip is a slow way to learn a file was too
- * big or the wrong kind.
+ * constant that drifts from the backend's allowlist. Both checks live in `lib/uploads`
+ * so the pasted path and the picked path cannot disagree about what is allowed.
  */
-
-const FALLBACK_MAX_BYTES = 25 * 1024 * 1024;
 
 export function FilePicker({
   file,
@@ -34,6 +38,7 @@ export function FilePicker({
   const [dragging, setDragging] = useState(false);
   const [rejected, setRejected] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const preview = useObjectUrl(file);
 
   const maxBytes = limits?.max_bytes ?? FALLBACK_MAX_BYTES;
   const extensions = limits?.extensions ?? [];
@@ -41,31 +46,24 @@ export function FilePicker({
 
   const choose = (next: File | undefined | null) => {
     if (!next) return;
-    setRejected(null);
-    const ext = next.name.includes(".") ? next.name.split(".").pop()!.toLowerCase() : "";
-    if (extensions.length > 0 && !extensions.includes(ext)) {
-      setRejected(`That file type isn't supported. Allowed: ${extensions.join(", ")}.`);
-      onFileChange(null);
-      return;
-    }
-    if (next.size > maxBytes) {
-      setRejected(
-        `That file is ${Math.round(next.size / 1_048_576)}MB — the limit is ${Math.floor(
-          maxBytes / 1_048_576,
-        )}MB.`,
-      );
-      onFileChange(null);
-      return;
-    }
-    onFileChange(next);
+    const reason = rejectionFor(next, limits);
+    setRejected(reason);
+    onFileChange(reason ? null : next);
   };
 
   if (file) {
     return (
       <div className="mt-4">
         <div className="flex items-center gap-3 rounded-2xl border border-border bg-secondary/40 p-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary">
-            <FileText className="size-4" aria-hidden />
+          <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-primary-soft text-primary">
+            {preview ? (
+              /* eslint-disable-next-line @next/next/no-img-element -- a blob: URL for a
+                 file the user just handed us; next/image has nothing to optimise and no
+                 remote pattern to match. */
+              <img src={preview} alt="" className="size-full object-cover" />
+            ) : (
+              <FileText className="size-4" aria-hidden />
+            )}
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-semibold text-foreground">{file.name}</p>
@@ -110,7 +108,7 @@ export function FilePicker({
       >
         <UploadCloud className="size-6 text-primary" aria-hidden />
         <span className="mt-2 text-[13px] font-semibold text-foreground">
-          Choose a file, or drop one here
+          Choose a file, drop one here, or paste an image
         </span>
         <span className="mt-1 text-[12px] text-muted-foreground">
           Up to {Math.floor(maxBytes / 1_048_576)}MB
@@ -147,8 +145,34 @@ export function FilePicker({
   );
 }
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1_048_576) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / 1_048_576).toFixed(1)} MB`;
+/**
+ * A blob: URL for the chosen image, revoked when it stops being the chosen image.
+ *
+ * The URL is minted *inside* the effect, not during render, and that is the whole point
+ * of this hook rather than a `useMemo` one-liner. React runs an effect's cleanup once
+ * immediately on mount in development (StrictMode), so a URL created during render is
+ * revoked by that first cleanup and never re-created -- the `<img>` keeps a src pointing
+ * at nothing and renders the browser's broken-image glyph. Minting here means the second
+ * run hands back a live URL.
+ *
+ * Without the revoke the bytes stay alive for the life of the document, which for a sheet
+ * someone opens repeatedly is a screenshot's worth of memory per attempt.
+ */
+function useObjectUrl(file: File | null): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    // The external system being synchronised is the URL registry: the value cannot be
+    // created before the effect without that first StrictMode cleanup revoking it.
+    if (!file || !isPreviewableImage(file)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUrl(null);
+      return;
+    }
+    const next = URL.createObjectURL(file);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [file]);
+
+  return url;
 }

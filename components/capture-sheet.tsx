@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -26,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api";
+import { fileFromClipboard, rejectionFor } from "@/lib/uploads";
 import {
   useDeleteVaultItem,
   useSaveNote,
@@ -140,6 +142,9 @@ function CaptureForm({
   // server default arrives asynchronously, and an effect that writes it in would either
   // race a choice made while the request was in flight or cascade a render to fix it.
   const [chosenLanguage, setChosenLanguage] = useState<string | null>(null);
+  // What was announced to a screen reader about the last paste. The picture of the file
+  // arriving is the whole feedback for a sighted user; this is the same event in words.
+  const [pasteNotice, setPasteNotice] = useState("");
   const router = useRouter();
   const reduced = useReducedMotion();
   const groupVariants = motionVariants(reduced, stagger(0.045));
@@ -176,6 +181,48 @@ function CaptureForm({
     setFile(next);
     if (next) setError(null);
   }, []);
+
+  /**
+   * A pasted image is a capture.
+   *
+   * The clipboard is how a screenshot exists at all — cropping one out of a page or
+   * hitting Cmd+Shift+4 leaves bytes and nothing else — so without this the only route
+   * into the vault is to save it to disk first and pick it back up. The listener is on
+   * the window rather than on the drop zone because a paste is aimed at the sheet: the
+   * zone is a `<button>` and therefore never holds the caret.
+   *
+   * Three rules keep it from eating pastes it has no business in: it only fires when the
+   * clipboard actually carries a file, it yields to text whenever the caret is in a field
+   * that takes text (a clipboard copied out of a document carries both, and this sheet is
+   * mostly used for pasting links), and the file is validated by exactly the code the
+   * picker uses, so pasted and picked files cannot disagree about what is allowed.
+   */
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      if (saving) return;
+      const data = event.clipboardData;
+      if (isEditable(event.target) && (data?.getData("text/plain") ?? "").trim()) return;
+
+      const pasted = fileFromClipboard(data);
+      if (!pasted) return;
+
+      event.preventDefault();
+      setKind("pdf");
+      if (pasted.error) {
+        setFile(null);
+        setError(pasted.error);
+        setPasteNotice(pasted.error);
+        return;
+      }
+      const reason = rejectionFor(pasted.file, limits.data);
+      setFile(reason ? null : pasted.file);
+      setError(reason);
+      setPasteNotice(reason ?? `Pasted image attached: ${pasted.file.name}.`);
+    };
+
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [saving, limits.data]);
 
   /**
    * One landing for every kind: close, confirm, offer an undo.
@@ -384,6 +431,10 @@ function CaptureForm({
         <FilePicker file={file} onFileChange={onFileChange} limits={limits.data} busy={saving} />
       )}
 
+      <p role="status" aria-live="polite" className="sr-only">
+        {pasteNotice}
+      </p>
+
       {showPrimary && (
         <div className="mt-4">
           <Label
@@ -517,6 +568,13 @@ function CaptureForm({
       </div>
     </>
   );
+}
+
+/** Whether a paste landing here is a paste into text, which must be left alone. */
+function isEditable(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  return target.tagName === "INPUT" || target.tagName === "TEXTAREA";
 }
 
 /** Only plain web addresses. The server re-validates with pydantic's `HttpUrl`. */
