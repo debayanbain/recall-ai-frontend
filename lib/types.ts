@@ -91,6 +91,14 @@ export type VaultItemDetail = VaultItem & {
    */
   ai_highlights: string[];
   item_metadata: Record<string, unknown>;
+  /**
+   * A carousel's slides, in order, already signed by the API.
+   *
+   * `null` in a position is a slide that failed to mirror. The hole is deliberate — a
+   * carousel is ordered and its caption refers to slides by number, so compacting the
+   * list would put slide 10 where the caption says 9.
+   */
+  slide_urls?: (string | null)[];
 };
 
 export type VaultListResponse = {
@@ -98,6 +106,27 @@ export type VaultListResponse = {
   total: number;
   limit: number;
   offset: number;
+};
+
+/**
+ * A memory in the trash: a card, plus the two dates that page is about.
+ *
+ * `purge_after` is computed by the server from `deleted_at` and its own retention
+ * setting, so it is the day the sweep will really act on — never a date the client works
+ * out from a number it was told once.
+ */
+export type TrashItem = VaultItem & {
+  deleted_at: string;
+  purge_after: string;
+};
+
+export type TrashListResponse = {
+  items: TrashItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  /** So the page can explain the window without hardcoding a number the server owns. */
+  retention_days: number;
 };
 
 export type InstagramAccount = {
@@ -237,14 +266,21 @@ export type PublicSpace = {
 // --- Connections --------------------------------------------------------------------
 
 /**
- * How one memory relates to another. Eight keys, matching the backend's `Relation`.
+ * How one memory relates to another. Nine keys, matching the backend's `Relation`.
  *
- * `related_to` is the weakest claim and doubles as the "Other" of this vocabulary: a
- * derived edge is always this one, because a cosine distance says two memories are
- * *close* and nothing more. Anything stronger was chosen by a person.
+ * `related_to` is the weakest claim and doubles as the "Other" of this vocabulary.
+ * Anything stronger was chosen by a person, or by the model that judges a capture's
+ * candidates — `MemoryConnection.origin` is which, and `ai_reason` is the sentence that
+ * comes with the second.
  */
 export type Relation =
   | "related_to"
+  /**
+   * The same thing kept twice — same video, same article, same link. Mechanical rather
+   * than semantic: the backend hands its judge a measured "same source" signal rather
+   * than asking it to infer one, so this label means two *rows*, not two opinions.
+   */
+  | "duplicate_of"
   | "expands"
   | "supports"
   | "contradicts"
@@ -305,6 +341,48 @@ export type ConnectionSuggestion = {
   created_at: string;
   source: VaultItem;
   target: VaultItem;
+};
+
+/**
+ * One edge on the vault canvas, named by both of its memories rather than carrying a card.
+ *
+ * A graph is wired from ids — the nodes arrive once in `VaultGraph.nodes` however many
+ * edges touch them — so shipping a card per edge would send a memory with six connections
+ * six times.
+ *
+ * The direction here is the **stored** one and is meaningful: `part_of` and `depends_on`
+ * read differently each way, and the backend normalises the symmetric relations on write
+ * so the arrow drawn is always the one the label belongs to.
+ */
+export type GraphEdge = {
+  id: string;
+  source_id: string;
+  target_id: string;
+  relation: Relation;
+  origin: ConnectionOrigin;
+  status: ConnectionStatus;
+  score: number | null;
+  note: string | null;
+  ai_reason: string | null;
+  created_at: string;
+};
+
+/**
+ * The whole vault as a graph.
+ *
+ * `nodes` is derived from `edges` server-side, which is what makes the two incapable of
+ * disagreeing about which memories are on screen. A memory with no connections is
+ * deliberately absent: it has nothing to draw, and a canvas of unattached cards is a
+ * vault listing with worse ergonomics.
+ *
+ * `truncated` is the honest half of a ceiling — a vault past the limit gets its strongest
+ * edges and is told so, rather than being shown part of itself as the whole.
+ */
+export type VaultGraph = {
+  nodes: VaultItem[];
+  edges: GraphEdge[];
+  total: number;
+  truncated: boolean;
 };
 
 /** A memory and how many things connect to it. */

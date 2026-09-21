@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { AppShell } from "@/components/app-shell";
 import { CaptureBar } from "@/components/capture-bar";
 import { MemoryFeed } from "@/components/memory-feed";
+import { HOME_FEED_LIMIT } from "@/lib/vault-limits";
 import { AnimateSvg } from "@/components/ui/animate-svg";
 
 export const metadata: Metadata = {
@@ -59,7 +60,9 @@ export default function Home() {
       </section>
 
       <div className="mt-8 sm:mt-10">
-        <MemoryFeed heading="Recent memories" limit={12} />
+        {/* Same limit the stat tiles read, so the page issues ONE /vault request and
+            the two numbers on it come from the same answer. */}
+        <MemoryFeed heading="Recent memories" limit={HOME_FEED_LIMIT} viewAllHref="/vault" />
       </div>
     </AppShell>
   );

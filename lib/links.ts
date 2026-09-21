@@ -17,7 +17,13 @@
 import type { VaultItemDetail } from "@/lib/types";
 
 /** Where a link was found, most trustworthy first. Mirrors the backend's own ordering. */
-export type LinkSource = "caption" | "description" | "video" | "speech" | "transcript";
+export type LinkSource =
+  | "caption"
+  | "description"
+  | "video"
+  | "speech"
+  | "transcript"
+  | "slide";
 
 export type MemoryLink = {
   url: string;
@@ -34,6 +40,7 @@ const SOURCES: readonly LinkSource[] = [
   "video",
   "speech",
   "transcript",
+  "slide",
 ];
 
 /** The two a person wrote by hand. Everything else was read or heard by a model. */
@@ -45,6 +52,7 @@ const NOTES: Record<LinkSource, string> = {
   video: "Read on screen",
   speech: "Heard in the audio",
   transcript: "Heard in the audio",
+  slide: "Read off a slide",
 };
 
 /** How a link should be introduced to the person deciding whether to open it. */
@@ -103,11 +111,32 @@ function asSource(raw: unknown): LinkSource | null {
  * extractor recorded, and an older item's entry may predate the shape entirely.
  */
 export function memoryLinks(item: VaultItemDetail): MemoryLink[] {
-  const stored = (item.item_metadata as Record<string, unknown> | null)?.links;
-  if (!Array.isArray(stored)) return [];
-
+  const metadata = item.item_metadata as Record<string, unknown> | null;
+  const stored = metadata?.links;
   const seen = new Set<string>();
   const out: MemoryLink[] = [];
+
+  // A carousel's slides name sites that exist nowhere else on the page — the whole point
+  // of a "top 10 websites" post — and they arrive as bare hosts the backend rebuilt as
+  // `https://<host>`. They are model readings of pixels, so they are `slide`, never
+  // typed: the warning line and the per-row note that already exist for links read off a
+  // video are exactly the right thing to say about a link read off a slide.
+  const fromSlides = metadata?.slide_links;
+  if (Array.isArray(fromSlides)) {
+    for (const raw of fromSlides) {
+      const url = safeLink(raw);
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      out.push({
+        url,
+        source: "slide",
+        host: new URL(url).hostname.toLowerCase(),
+        typed: false,
+      });
+    }
+  }
+
+  if (!Array.isArray(stored)) return out;
 
   for (const entry of stored) {
     if (typeof entry !== "object" || entry === null) continue;

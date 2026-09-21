@@ -10,6 +10,7 @@ import {
   Share2,
   Smartphone,
   Sparkles,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,6 +32,10 @@ export const secondary: NavItem[] = [
   { to: "/editor", label: "Smart editor", icon: Pencil },
   { to: "/share/building-recallai", label: "Public share page", icon: Share2 },
   { to: "/mobile", label: "Mobile preview", icon: Smartphone },
+  // Secondary rather than top-level: a person goes looking for the trash after a mistake,
+  // which is rare, and a delete that cannot be found again is the failure that matters --
+  // not one that costs a second click.
+  { to: "/trash", label: "Trash", icon: Trash2 },
 ];
 
 /** Mobile bottom bar — max five slots, centre one is the capture action. */

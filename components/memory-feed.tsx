@@ -22,10 +22,13 @@ export function MemoryFeed({
   heading,
   limit = 60,
   showViewToggle = false,
+  viewAllHref,
 }: {
   heading?: string;
   limit?: number;
   showViewToggle?: boolean;
+  /** Passed on to the grid, which shows it only when this is a partial page. */
+  viewAllHref?: string;
 }) {
   const { isSignedIn, isLoading: sessionLoading } = useSession();
   const { data, isPending, isError, refetch } = useVaultItems({ limit });
@@ -47,6 +50,10 @@ export function MemoryFeed({
       heading={heading}
       showViewToggle={showViewToggle}
       items={memories}
+      // The API's own count, from the same response as the rows — so the line under the
+      // heading can say "12 of 21" instead of reporting the page size as the vault size.
+      total={data?.total}
+      viewAllHref={viewAllHref}
       // A disabled query stays `pending` forever in TanStack, so the session's own
       // loading state is what decides whether to show skeletons.
       isLoading={sessionLoading || (isSignedIn && isPending)}

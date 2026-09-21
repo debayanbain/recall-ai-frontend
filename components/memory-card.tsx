@@ -296,8 +296,16 @@ export function MemoryRow({
   m,
   href,
   label,
+  interactive = true,
 }: {
   m: Memory;
+  /**
+   * Whether the row navigates and can be favourited. Off inside a dialog: the row is
+   * there to say *which* memory this is about, and a full-card link in a modal is a tap
+   * that throws the decision away to go somewhere else -- along with a heart that nobody
+   * came here to press.
+   */
+  interactive?: boolean;
   /** Where the row goes. Defaults to the memory's own page. */
   href?: string;
   /** What a screen reader hears. Defaults to the title, which is right when the row
@@ -328,13 +336,17 @@ export function MemoryRow({
   return (
     <Card
       ref={viewRef}
-      className={`${cardReset} group relative flex-row items-center gap-3 rounded-2xl border border-border p-3 transition-colors hover:border-primary/25 sm:gap-4 sm:p-3.5`}
+      className={`${cardReset} group relative w-full min-w-0 flex-row items-center gap-3 overflow-hidden rounded-2xl border border-border p-3 transition-colors sm:gap-4 sm:p-3.5 ${
+        interactive ? "hover:border-primary/25" : ""
+      }`}
     >
-      <Link
-        href={href ?? `/memory/${m.id}`}
-        aria-label={label ?? m.title}
-        className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-      />
+      {interactive && (
+        <Link
+          href={href ?? `/memory/${m.id}`}
+          aria-label={label ?? m.title}
+          className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        />
+      )}
       <div
         className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl sm:h-14 sm:w-14"
         style={{ backgroundImage: m.accent }}
@@ -376,22 +388,24 @@ export function MemoryRow({
           {m.source} · {m.savedAt}
         </div>
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label={
-          favorited ? `Remove ${m.title} from favorites` : `Favorite ${m.title}`
-        }
-        aria-pressed={favorited}
-        onClick={() => favoriteToast(m.title, toggleFavorite(m.id))}
-        className={`relative z-20 size-10 shrink-0 rounded-full ${
-          favorited
-            ? "text-rose-500"
-            : "text-muted-foreground hover:bg-secondary hover:text-primary"
-        }`}
-      >
-        <Heart className="size-4" fill={favorited ? "currentColor" : "none"} />
-      </Button>
+      {interactive && (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={
+            favorited ? `Remove ${m.title} from favorites` : `Favorite ${m.title}`
+          }
+          aria-pressed={favorited}
+          onClick={() => favoriteToast(m.title, toggleFavorite(m.id))}
+          className={`relative z-20 size-10 shrink-0 rounded-full ${
+            favorited
+              ? "text-rose-500"
+              : "text-muted-foreground hover:bg-secondary hover:text-primary"
+          }`}
+        >
+          <Heart className="size-4" fill={favorited ? "currentColor" : "none"} />
+        </Button>
+      )}
     </Card>
   );
 }

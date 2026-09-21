@@ -10,6 +10,7 @@ import type {
   ConnectionSuggestionList,
   MemoryConnection,
   Relation,
+  VaultGraph,
 } from "@/lib/types";
 
 /**
@@ -53,6 +54,65 @@ export function useConnectionHubs() {
     queryKey: queryKeys.connections.hubs,
     queryFn: () => apiFetch<{ hubs: ConnectionHub[] }>("/connections/hubs"),
     enabled: isSignedIn,
+  });
+}
+
+/**
+ * The whole vault as a graph. What the canvas draws.
+ *
+ * One request for every node and every edge, rather than a neighbourhood per memory:
+ * a canvas that fetched per node would issue one round trip per card it drew, against a
+ * database in another region — which is the same arithmetic `CLAUDE.md` does for the
+ * thumbnail route it decided not to add.
+ *
+ * Polled slowly while anything is still being captured, because edges are derived *after*
+ * the pipeline finishes: a memory saved thirty seconds ago legitimately has none yet, and
+ * a canvas that never notices them arriving looks like a feature that did not run. The
+ * interval is deliberately longer than `useConnections`' — a whole-graph refetch is a
+ * relayout, and a graph that rearranges itself under a cursor every five seconds is worse
+ * than one that is briefly out of date.
+ */
+export function useConnectionGraph(includeDismissed = false) {
+  const { isSignedIn } = useSession();
+  return useQuery({
+    queryKey: queryKeys.connections.graph(includeDismissed),
+    queryFn: () =>
+      apiFetch<VaultGraph>(
+        `/connections/graph${includeDismissed ? "?include_dismissed=true" : ""}`,
+      ),
+    enabled: isSignedIn,
+    refetchInterval: 30_000,
+    // The canvas keeps its own node positions; a refetch that blanked the graph would
+    // throw away a layout somebody has been dragging.
+    placeholderData: (previous) => previous,
+  });
+}
+
+/**
+ * One memory's undecided edges, polled until the pipeline that derives them has finished.
+ *
+ * What the post-capture modal waits on. Derivation is the *last* step of processing and
+ * runs in its own Celery task after the commit, so a memory saved a second ago has no
+ * suggestions yet and an empty answer here means "not finished", not "nothing found" --
+ * which is why the poll is keyed on the focus item's own `processing_status` rather than
+ * on the edge count. It stops the moment the item reaches a terminal state.
+ *
+ * Faster than `useConnections`' interval because something is waiting on the answer:
+ * nobody is watching a memory's page for an edge to appear, and somebody *is* watching
+ * for this.
+ */
+export function useItemSuggestions(itemId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.connections.forItemSuggested(itemId ?? ""),
+    queryFn: () =>
+      apiFetch<ConnectionNeighbourhood>(
+        `/connections/for-item/${encodeURIComponent(itemId!)}?include_suggested=true`,
+      ),
+    enabled: Boolean(itemId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.focus.processing_status;
+      return status === "pending" || status === "processing" ? 3_000 : false;
+    },
   });
 }
 

@@ -12,10 +12,12 @@ import { queryKeys } from "@/lib/query-keys";
 import type { EditorBlock } from "@/lib/editor-doc";
 import type {
   FileLinkResponse,
+  TrashListResponse,
   VaultItem,
   VaultItemDetail,
   VaultListResponse,
 } from "@/lib/types";
+import { VAULT_PAGE_LIMIT } from "@/lib/vault-limits";
 
 export function useVaultItems({ limit = 20, offset = 0 } = {}) {
   const { isSignedIn } = useSession();
@@ -165,10 +167,80 @@ export function useReprocessItem() {
   });
 }
 
+/**
+ * Move a memory to the trash.
+ *
+ * Nothing is destroyed: the row and its file survive, and `useRestoreVaultItem` puts it
+ * back whole. That is why the copy at every call site says Trash rather than deleted —
+ * somebody told "gone for good" does not go looking for the restore that exists.
+ */
 export function useDeleteVaultItem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiFetch<void>(`/vault/${id}`, { method: "DELETE" }),
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/vault/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.vault.all }),
+  });
+}
+
+/** Deleted memories that can still come back, most recently deleted first. */
+export function useTrashItems({ limit = VAULT_PAGE_LIMIT, offset = 0 } = {}) {
+  const { isSignedIn } = useSession();
+  return useQuery({
+    queryKey: queryKeys.vault.trash(limit, offset),
+    queryFn: () =>
+      apiFetch<TrashListResponse>(`/vault/trash?limit=${limit}&offset=${offset}`),
+    enabled: isSignedIn,
+  });
+}
+
+/**
+ * Put a trashed memory back where it was.
+ *
+ * The response is the restored memory, written into the detail cache so a page opened at
+ * its id is right immediately; every listing is invalidated because the row has just
+ * moved between two of them.
+ */
+export function useRestoreVaultItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<VaultItemDetail>(`/vault/${encodeURIComponent(id)}/restore`, {
+        method: "POST",
+      }),
+    onSuccess: (item) => {
+      queryClient.setQueryData(queryKeys.vault.detail(item.id), item);
+      queryClient.invalidateQueries({ queryKey: queryKeys.vault.all });
+    },
+  });
+}
+
+/**
+ * Destroy one trashed memory now, without waiting out the window.
+ *
+ * This one really is permanent — the server scrubs the row and deletes the file — so
+ * every caller confirms first.
+ */
+export function usePurgeVaultItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<void>(`/vault/${encodeURIComponent(id)}/permanent`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.vault.all }),
+  });
+}
+
+/**
+ * Empty the trash, one batch per call.
+ *
+ * The server bounds a single request because each memory's purge deletes its objects one
+ * at a time; it answers with how many actually went, so a caller that gets a full batch
+ * back can call again.
+ */
+export function useEmptyTrash() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch<{ purged: number }>("/vault/trash", { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.vault.all }),
   });
 }

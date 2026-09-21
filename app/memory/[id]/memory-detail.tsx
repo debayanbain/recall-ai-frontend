@@ -41,6 +41,7 @@ import { useConnections } from "@/hooks/use-connections";
 import { relationLabel, relationStyle } from "@/lib/connection-style";
 import { FilePlaque, useAttachmentCover } from "@/components/attachment-preview";
 import { MemoryCard } from "@/components/memory-card";
+import { SlideCarousel } from "@/components/slide-carousel";
 import { VoiceHero, hasAudio } from "@/components/voice-hero";
 import { ProcessingState } from "@/components/processing-state";
 import { MemoryLinks } from "@/components/memory-links";
@@ -48,7 +49,12 @@ import { TranscriptControls } from "@/components/transcript-controls";
 import { VideoReadControls } from "@/components/video-read-controls";
 import { useCapture } from "@/components/capture-sheet";
 import { useSession } from "@/hooks/use-auth";
-import { useDeleteVaultItem, useFileLink, useVaultItem } from "@/hooks/use-vault";
+import {
+  useDeleteVaultItem,
+  useFileLink,
+  useRestoreVaultItem,
+  useVaultItem,
+} from "@/hooks/use-vault";
 import { ApiError } from "@/lib/api";
 import { toMemories, toMemory } from "@/lib/vault-adapter";
 import { readerDocument } from "@/lib/editor-doc";
@@ -144,6 +150,7 @@ export function MemoryDetail({ id }: { id: string }) {
     resolving: heroResolving,
   } = useAttachmentCover({ id, file: heroFile });
   const deleteItem = useDeleteVaultItem();
+  const restoreItem = useRestoreVaultItem();
   const fileLink = useFileLink();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -280,6 +287,15 @@ export function MemoryDetail({ id }: { id: string }) {
 
   const memory = toMemory(item);
   const heroCover = memory.cover ?? heroUpload;
+  /**
+   * A carousel's slides, already signed by the API.
+   *
+   * Filtered to "has at least one picture that actually mirrored": a list that is all
+   * holes would render a carousel whose every slide says it could not be loaded, which is
+   * a worse answer than the ordinary banner the item still has.
+   */
+  const slides = item.slide_urls ?? [];
+  const hasSlides = slides.some(Boolean);
   // The audio branch below owns every item that has a recording, so this only ever names
   // a document, a spreadsheet or an image this browser cannot decode.
   const heroPlaque = !heroCover && !heroResolving ? memory.file : undefined;
@@ -356,9 +372,10 @@ export function MemoryDetail({ id }: { id: string }) {
     },
     {
       i: Trash2,
-      // Two clicks rather than a browser confirm: deleting is the one action here that
-      // cannot be undone, and the label says exactly what the second click does.
-      l: confirmingDelete ? "Confirm delete" : "Delete",
+      // Two clicks rather than a browser confirm, and the label says exactly what the
+      // second one does. It says Trash rather than Delete because that is now where the
+      // memory goes -- the irreversible step lives on the trash page.
+      l: confirmingDelete ? "Confirm move to Trash" : "Delete",
       // Armed, so it stops looking like its four neighbours. The label already changed,
       // which is what carries the meaning for anyone who cannot see the colour -- red on
       // its own would be exactly the "colour as the only signal" failure. This is the
@@ -372,7 +389,23 @@ export function MemoryDetail({ id }: { id: string }) {
         }
         deleteItem.mutate(memory.id, {
           onSuccess: () => {
-            toast.success("Memory deleted", { description: memory.title });
+            // Named for what actually happened: the row and its file are still there, and
+            // "deleted" would send somebody who mistapped looking for a support page
+            // instead of the Undo sitting in front of them.
+            toast.success("Moved to Trash", {
+              description: memory.title,
+              action: {
+                label: "Undo",
+                onClick: () =>
+                  restoreItem.mutate(memory.id, {
+                    onSuccess: () => router.push(`/memory/${memory.id}`),
+                    onError: () =>
+                      toast.error("Couldn't restore that", {
+                        description: "It is still in your trash.",
+                      }),
+                  }),
+              },
+            });
             router.push("/vault");
           },
           onError: () => {
@@ -416,7 +449,16 @@ export function MemoryDetail({ id }: { id: string }) {
           {/* For every other kind the banner is decoration over content further down the
               page. For a recording it IS the content -- the transcript below is a reading
               of it -- so the top of the page is the player. */}
-          {hasAudio(item) ? (
+          {/* A carousel is not decoration either: its slides ARE the post, and the
+              caption refers to them by number. So it replaces the banner rather than
+              sitting under it, the same call `VoiceHero` makes for a recording. */}
+          {hasSlides ? (
+            <SlideCarousel
+              slides={slides}
+              label={memory.title}
+              className="rounded-[24px] sm:rounded-[28px]"
+            />
+          ) : hasAudio(item) ? (
             <VoiceHero
               item={item}
               accent={memory.accent}
@@ -561,6 +603,16 @@ export function MemoryDetail({ id }: { id: string }) {
                 <Sparkles className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
                 Recall watched this video — the sections below marked as seen or spoken are
                 its reading, not words the author typed.
+              </p>
+            )}
+            {/* Beside the video notice above and for the same reason: half this body is
+                a model's transcription of pictures, and rendering it identically to the
+                caption the author typed is the one way this can lie. */}
+            {!editing && item.item_metadata.slide_text_source === "vision" && (
+              <p className="mb-2 flex items-start gap-1.5 text-[12.5px] text-muted-foreground">
+                <Sparkles className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
+                Recall read this carousel&rsquo;s slides — everything under
+                &ldquo;Slides:&rdquo; is its transcription, not words the author typed.
               </p>
             )}
             {editing ? (

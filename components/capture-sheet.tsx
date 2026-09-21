@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { Link2, Loader2, Mic, StickyNote, Upload, X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { toast } from "@/lib/toast";
+import { useConnectionSuggest } from "@/components/connection-suggest";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -146,6 +147,7 @@ function CaptureForm({
   // arriving is the whole feedback for a sighted user; this is the same event in words.
   const [pasteNotice, setPasteNotice] = useState("");
   const router = useRouter();
+  const suggest = useConnectionSuggest();
   const reduced = useReducedMotion();
   const groupVariants = motionVariants(reduced, stagger(0.045));
   const itemVariants = motionVariants(reduced, fadeUp);
@@ -233,6 +235,9 @@ function CaptureForm({
    */
   const landed = (item: { id: string; title: string | null }, fallback: string) => {
     onDone();
+    // Ask to be told when this memory's connections have been derived. Nothing exists
+    // yet -- derivation is the last step of processing -- so this is a watch, not a read.
+    suggest.watch(item.id);
     toast.success("Saved to your vault", {
       // Nothing is summarized yet: the worker does that out of band, so say so rather
       // than showing an empty card and letting the user wonder.

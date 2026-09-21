@@ -9,6 +9,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { CaptureProvider } from "@/components/capture-sheet";
 import { CommandPaletteProvider } from "@/components/command-palette";
 import { AddToSpaceProvider } from "@/components/add-to-space";
+import { ConnectionSuggestProvider } from "@/components/connection-suggest";
 import { useHydrateStores } from "@/hooks/use-hydrate-stores";
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -22,6 +23,11 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryProvider>
     <SessionGuard />
     <TooltipProvider delay={300}>
+    {/* Outside CaptureProvider, not inside it: the capture sheet is what starts a watch,
+        and a provider renders its own surface beside `children` rather than within it —
+        so a sheet mounted by CaptureProvider is only under this context if this one is
+        the outer of the two. */}
+    <ConnectionSuggestProvider>
     <CaptureProvider>
       <CommandPaletteProvider>
       <AddToSpaceProvider>
@@ -33,6 +39,7 @@ export function Providers({ children }: { children: ReactNode }) {
       </AddToSpaceProvider>
       </CommandPaletteProvider>
     </CaptureProvider>
+    </ConnectionSuggestProvider>
     </TooltipProvider>
     </QueryProvider>
     </MotionConfig>

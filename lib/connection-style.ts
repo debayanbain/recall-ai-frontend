@@ -30,6 +30,14 @@ export const relationStyle: Record<Relation, RelationStyle> = {
     chip: "bg-sky-50 text-sky-700 ring-sky-200/70",
     dot: "bg-sky-400",
   },
+  duplicate_of: {
+    // Symmetric, so one wording both ways — and deliberately not "Duplicate of", which
+    // reads as an accusation about which copy is the real one. Neither is.
+    outgoing: "Same as",
+    incoming: "Same as",
+    chip: "bg-orange-50 text-orange-700 ring-orange-200/70",
+    dot: "bg-orange-400",
+  },
   expands: {
     outgoing: "Expands",
     incoming: "Expanded by",
@@ -74,17 +82,34 @@ export const relationStyle: Record<Relation, RelationStyle> = {
   },
 };
 
-/** Every relation, in the order a picker should offer them: weakest and most common first. */
+/**
+ * Every relation, in the order a picker should offer them: weakest and most common first.
+ *
+ * **`Record<Relation, ...>` above is checked by the compiler; this array is not.** Adding
+ * `duplicate_of` to the type made `relationStyle` fail to compile until it gained an entry
+ * — and left this list quietly one short, which presents as a relation that exists
+ * everywhere except in the dropdown a person picks from. The length assertion below is
+ * what turns that back into a build error.
+ */
 export const RELATIONS: Relation[] = [
   "related_to",
+  "duplicate_of",
   "expands",
   "supports",
-  "contradicts",
-  "inspired_by",
-  "depends_on",
   "example_of",
   "part_of",
+  "depends_on",
+  "inspired_by",
+  "contradicts",
 ];
+
+// Compile-time only: `RELATIONS` must offer every key `relationStyle` defines. Erased by
+// the type checker, so it costs nothing at runtime.
+type _EveryRelationIsOffered = Exclude<Relation, (typeof RELATIONS)[number]> extends never
+  ? true
+  : ["RELATIONS is missing a relation", Exclude<Relation, (typeof RELATIONS)[number]>];
+const _relationsAreComplete: _EveryRelationIsOffered = true;
+void _relationsAreComplete;
 
 /** The wording for an edge as read from one particular end. */
 export function relationLabel(

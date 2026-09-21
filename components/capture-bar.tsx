@@ -22,6 +22,7 @@ import {
   useVaultItems,
 } from "@/hooks/use-vault";
 import { ApiError } from "@/lib/api";
+import { HOME_FEED_LIMIT } from "@/lib/vault-limits";
 import { useCapture } from "@/components/capture-sheet";
 import { ease, fadeUp, motionVariants, stagger } from "@/lib/motion";
 
@@ -50,7 +51,10 @@ export function CaptureBar() {
   const statsVariants = motionVariants(reduced, stagger(0.05, 0.1));
   const statVariants = motionVariants(reduced, fadeUp);
 
-  const vault = useVaultItems({ limit: 20 });
+  // The feed below asks for the same page. `useVaultItems` keys its cache by `limit`,
+  // so a different number here would be a second cache entry and a second round trip
+  // for rows this page already has.
+  const vault = useVaultItems({ limit: HOME_FEED_LIMIT });
   const saveUrl = useSaveUrl();
   const saveNote = useSaveNote();
   const remove = useDeleteVaultItem();
@@ -96,6 +100,10 @@ export function CaptureBar() {
   // Only numbers the backend can actually answer for. "Connections" and "Spaces" used
   // to be `memories.length * 2` and a hardcoded 12 — invented figures that stayed put
   // while the real vault changed, which is worse than showing nothing.
+  // Counted over the page that arrived rather than the whole vault, which is right for
+  // this one: the listing is newest-first and anything still processing was saved in the
+  // last few minutes, so it is on the first page by construction. `memories` is the only
+  // tile that needs the vault's own `total`, and it reads it.
   const inFlight = (vault.data?.items ?? []).filter(
     (i) => i.processing_status === "pending" || i.processing_status === "processing",
   ).length;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { CheckSquare, Heart, LayoutGrid, List, Search, SlidersHorizontal } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,8 @@ export function MemoryGrid({
   duplicateForDensity = false,
   columns = "xl:columns-4",
   items,
+  total,
+  viewAllHref,
   isLoading = false,
   isError = false,
   onRetry,
@@ -73,6 +76,16 @@ export function MemoryGrid({
   /** The vault repeats the seed set so the masonry grid reads as a full library. */
   duplicateForDensity?: boolean;
   columns?: string;
+  /**
+   * How many memories the vault actually holds, from the API's own `total`.
+   *
+   * `items` is one page of that, so counting it answers "how many arrived", not "how
+   * many do I have" — the home feed asks for 12 and said "12 memories" under a stat tile
+   * reading 21. Passing this makes the line say which number it is.
+   */
+  total?: number;
+  /** Where the rest of them live, shown only when this is a partial page. */
+  viewAllHref?: string;
   /**
    * Real memories from the API. When omitted the grid falls back to the local store,
    * which is still what the pages not yet migrated off mock data rely on.
@@ -108,6 +121,10 @@ export function MemoryGrid({
     const pad = duplicateForDensity && !items && filter === "all" && !onlyFavorites;
     return pad ? [...list, ...list] : list;
   }, [memories, favorites, filter, sort, onlyFavorites, duplicateForDensity, items]);
+
+  // `memories` is the page that arrived; `total` is what the vault holds. A grid showing
+  // everything there is says nothing extra.
+  const truncated = total !== undefined && total > memories.length;
 
   return (
     <section>
@@ -214,6 +231,23 @@ export function MemoryGrid({
         {results.length} {results.length === 1 ? "memory" : "memories"}
         {filter !== "all" && ` in ${filters.find((f) => f.id === filter)?.label.toLowerCase()}`}
         {onlyFavorites && " · favorites only"}
+        {/* Only when this really is a partial page. Saying "21 in your vault" under a
+            grid that already shows all 21 would be noise, and the filters narrow what is
+            *shown* rather than what was fetched — so the comparison is against how many
+            memories arrived, never against the filtered result. */}
+        {truncated && (
+          <>
+            {` · ${total} in your vault`}
+            {viewAllHref && (
+              <>
+                {" · "}
+                <Link href={viewAllHref} className="underline underline-offset-2 hover:text-foreground">
+                  View all
+                </Link>
+              </>
+            )}
+          </>
+        )}
       </p>
 
       {isLoading ? (

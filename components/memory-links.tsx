@@ -39,7 +39,15 @@ export function MemoryLinks({ item }: { item: VaultItemDetail }) {
 
   if (links.length === 0) return null;
 
-  const read = links.filter((l) => !l.typed).length;
+  const machineRead = links.filter((l) => !l.typed);
+  const read = machineRead.length;
+  const sources = new Set(machineRead.map((l) => l.source));
+  const readSource =
+    sources.size === 1 && sources.has("slide")
+      ? "these off a slide"
+      : sources.size === 1 && sources.has("video")
+        ? "these off the video"
+        : "these off the video or slides";
 
   return (
     <Card className="card-soft mt-6 gap-0 rounded-[calc(var(--radius)+4px)] py-0 shadow-none ring-0 sm:mt-7">
@@ -53,9 +61,13 @@ export function MemoryLinks({ item }: { item: VaultItemDetail }) {
           // the per-row note is what someone actually reads at the moment they decide.
           <p id={noteId} className="mt-2 flex items-start gap-1.5 text-[12.5px] text-muted-foreground">
             <Sparkles className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
+            {/* Names where they came from, because "read off a video frame" and "read
+                off a slide" are different claims and a person deciding whether to tap
+                should hear the one that applies. Both are a model reading pixels, which
+                is the part that matters: one wrong character is a different company. */}
             {read === links.length
-              ? "Recall read these off the video rather than from text someone typed — check the address before you open one."
-              : "Some of these were read off the video rather than typed — check the address before you open one."}
+              ? `Recall read ${readSource} rather than from text someone typed — check the address before you open one.`
+              : `Some of these were read ${readSource} rather than typed — check the address before you open one.`}
           </p>
         )}
 

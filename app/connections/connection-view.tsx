@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { Check, Link2, Sparkles, Wand2, X } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
@@ -13,18 +13,31 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import {
   useConfirmConnection,
   useConnections,
+  useConnectionGraph,
   useConnectionHubs,
   useConnectionSuggestions,
+  useCreateConnection,
+  useDeleteConnection,
   useDismissConnection,
   useRetypeConnection,
+  useUpdateConnection,
 } from "@/hooks/use-connections";
+import { useSession } from "@/hooks/use-auth";
 import { useVaultItems } from "@/hooks/use-vault";
 import { MAX_GRAPH_NODES } from "@/lib/connection-layout";
 import { relationLabel, relationStyle } from "@/lib/connection-style";
 import { fadeUp, motionVariants, stagger } from "@/lib/motion";
 import { toMemory } from "@/lib/vault-adapter";
-import type { ConnectionSuggestion, MemoryConnection, Relation } from "@/lib/types";
+import type {
+  ConnectionSuggestion,
+  MemoryConnection,
+  Relation,
+  VaultItem,
+} from "@/lib/types";
 import { ConnectionGraph } from "./connection-graph";
+import { ConnectDialog, type DrawnPair } from "./connect-dialog";
+import { EdgeInspector } from "./edge-inspector";
+import { VaultCanvas } from "./vault-canvas";
 import { nodeStyle, type GraphNode } from "./graph-data";
 
 /** Undoes the base-sera Button defaults (square, uppercase, wide tracking). */
@@ -63,7 +76,7 @@ export function ConnectionView({ memoryId }: { memoryId?: string }) {
     [data?.connections],
   );
 
-  if (!memoryId) return <FocusPicker />;
+  if (!memoryId) return <VaultMap />;
 
   if (isLoading) {
     return (
@@ -363,6 +376,36 @@ function SuggestionStrip({
 }
 
 /**
+ * The shape of the page, drawn before the page has anything in it.
+ *
+ * A single grey slab where the canvas goes was the old placeholder, and it told the
+ * reader nothing about what was arriving -- then the real layout snapped in beside it
+ * with a whole review column the slab never reserved. This mirrors the two-column
+ * arrangement it is standing in for, at the same sizes, so nothing jumps when the data
+ * lands (`content-jumping`). `aria-busy` with a name is what a screen reader gets
+ * instead of the picture.
+ */
+function ConnectionsSkeleton() {
+  return (
+    <div
+      aria-busy="true"
+      aria-label="Loading your connection map"
+      className="flex flex-col gap-4 xl:flex-row"
+    >
+      <div className="min-w-0 flex-1">
+        <Skeleton className="h-[560px] w-full rounded-[calc(var(--radius)+4px)] lg:h-[680px]" />
+      </div>
+      <aside className="flex w-full shrink-0 flex-col gap-3 xl:max-w-sm">
+        <Skeleton className="h-6 w-44 rounded-lg" />
+        {[0, 1, 2].map((row) => (
+          <Skeleton key={row} className="h-44 w-full rounded-2xl" />
+        ))}
+      </aside>
+    </div>
+  );
+}
+
+/**
  * Every undecided edge, both ends shown.
  *
  * `SuggestionStrip` renders suggestions *about one memory* and can name the other end
@@ -388,26 +431,37 @@ function SuggestionInbox({ suggestions }: { suggestions: ConnectionSuggestion[] 
 
   return (
     <Card className="gap-0 rounded-[calc(var(--radius)+4px)] border border-dashed border-primary/40 bg-primary-soft/30 py-0 shadow-none ring-0">
-      <CardContent className="flex flex-col gap-3 p-5">
+      <CardContent className="flex min-w-0 flex-col gap-3 p-4 sm:p-5">
         <h2 className="flex items-center gap-2 text-[13px] font-semibold">
-          <Sparkles className="size-4 text-primary" />
+          <Sparkles className="size-4 shrink-0 text-primary" />
           {suggestions.length} connection{suggestions.length === 1 ? "" : "s"} to review
         </h2>
-        <ul className="flex flex-col gap-4">
+        {/* Each suggestion is its own bordered card. Flat, they ran together into one
+            column of rows where a pair of buttons could belong to the row above or the
+            two rows above -- the grouping has to be drawn, not inferred from spacing.
+            Scrolls inside itself so a backfill's worth of them does not push the page
+            metres past the canvas beside it. */}
+        <ul className="-mr-1 flex max-h-[560px] min-w-0 flex-col gap-3 overflow-y-auto overscroll-contain pr-1 lg:max-h-[640px]">
           {rows.map((suggestion) => (
-            <li key={suggestion.id} className="flex flex-col gap-2">
-              <MemoryRow m={suggestion.left} />
-              <span className="flex items-center gap-1.5 pl-1 text-[11.5px] text-muted-foreground">
+            <li
+              key={suggestion.id}
+              className="flex min-w-0 flex-col gap-2 rounded-2xl border border-border/70 bg-background p-3 shadow-[0_6px_18px_-16px_rgba(15,23,42,0.4)]"
+            >
+              {/* Not links and not favouritable: this is a decision about the pair, and a
+                  full-card link here navigates away from the queue somebody is working
+                  through. */}
+              <MemoryRow m={suggestion.left} interactive={false} />
+              <span className="flex items-center gap-1.5 pl-1 text-[11.5px] font-medium text-muted-foreground">
                 <Link2 className="size-3 shrink-0 text-primary" />
                 {relationLabel(suggestion.relation, "outgoing")}
               </span>
-              <MemoryRow m={suggestion.right} />
+              <MemoryRow m={suggestion.right} interactive={false} />
               {suggestion.ai_reason && <ConnectChip label={suggestion.ai_reason} />}
-              <div className="flex gap-2">
+              <div className="mt-0.5 flex flex-wrap gap-2">
                 <Button
                   onClick={() => confirm.mutate(suggestion.id)}
                   disabled={confirm.isPending}
-                  className={`${plain} h-9 gap-1.5 px-3 text-[12.5px] font-semibold`}
+                  className={`${plain} h-10 gap-1.5 px-3.5 text-[12.5px] font-semibold`}
                 >
                   <Check className="size-3.5" /> Connect
                 </Button>
@@ -415,7 +469,7 @@ function SuggestionInbox({ suggestions }: { suggestions: ConnectionSuggestion[] 
                   variant="ghost"
                   onClick={() => dismiss.mutate(suggestion.id)}
                   disabled={dismiss.isPending}
-                  className={`${plain} h-9 gap-1.5 px-3 text-[12.5px] font-semibold text-muted-foreground`}
+                  className={`${plain} h-10 gap-1.5 px-3.5 text-[12.5px] font-semibold text-muted-foreground`}
                 >
                   <X className="size-3.5" /> Not related
                 </Button>
@@ -424,13 +478,218 @@ function SuggestionInbox({ suggestions }: { suggestions: ConnectionSuggestion[] 
           ))}
         </ul>
         <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-          Dismissing one means Recall will not suggest that pair again. You can still
-          connect them yourself later.
+          Suggestions stay off the map until you accept one. Dismissing means Recall will
+          not suggest that pair again — you can still connect them yourself later.
         </p>
       </CardContent>
     </Card>
   );
 }
+
+/**
+ * `/connections` with no memory named: the whole vault, as a canvas you manage.
+ *
+ * This replaced a list, and the reasoning is worth keeping. The page is a top-level nav
+ * destination, so it is reached with no parameter every time somebody clicks it — and
+ * what it used to offer was a column of suggestions to approve one at a time. That is a
+ * chore rather than a place: it shows what the system decided and gives no way to see
+ * why, no way to see what *else* the memory sits near, and no way to connect two things
+ * yourself without first opening one of them.
+ *
+ * A canvas answers all three with one surface, and the two ways an edge comes into
+ * existence become the same gesture in the same place: a model proposes one and it
+ * appears as a ghost you accept where it is drawn, or you drag one card onto another and
+ * it is yours immediately.
+ *
+ * **The list did not go away.** It is the right-hand column when nothing is selected, and
+ * it is the keyboard path — drag-to-connect has no keyboard equivalent worth pretending
+ * about, so every action on the canvas is also an action in the list rather than the
+ * canvas being the only way to reach one.
+ *
+ * **A vault with no edges still gets the old picker**, because a canvas of nothing is a
+ * worse empty state than a list of the memories somebody could connect.
+ */
+function VaultMap() {
+  const { isLoading: sessionLoading } = useSession();
+  const graph = useConnectionGraph();
+  const suggestions = useConnectionSuggestions();
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [drawn, setDrawn] = useState<DrawnPair | null>(null);
+
+  const create = useCreateConnection();
+  const confirm = useConfirmConnection();
+  const dismiss = useDismissConnection();
+  const update = useUpdateConnection();
+  const retype = useRetypeConnection();
+  const remove = useDeleteConnection();
+
+  const byId = useMemo(() => {
+    const map = new Map<string, VaultItem>();
+    for (const node of graph.data?.nodes ?? []) map.set(node.id, node);
+    return map;
+  }, [graph.data?.nodes]);
+
+  // The edge *and* both of its memories, resolved together. Resolving them separately and
+  // falling back to "some other node" would render an inspector describing an edge that
+  // does not exist -- the worst shape a bug can have here, since nothing errors and the
+  // buttons all still work on the real row.
+  const selected = useMemo(() => {
+    const edge = (graph.data?.edges ?? []).find((row) => row.id === selectedEdgeId);
+    if (!edge) return null;
+    const source = byId.get(edge.source_id);
+    const target = byId.get(edge.target_id);
+    return source && target ? { edge, source, target } : null;
+  }, [graph.data?.edges, selectedEdgeId, byId]);
+
+  // Exactly the edge being written, so one pending mutation does not grey out the whole
+  // canvas. `variables` is the id for every one of these except `update`, which takes an
+  // object.
+  const busyEdgeIds = useMemo(() => {
+    const busy = new Set<string>();
+    if (confirm.isPending && confirm.variables) busy.add(confirm.variables);
+    if (dismiss.isPending && dismiss.variables) busy.add(dismiss.variables);
+    if (retype.isPending && retype.variables) busy.add(retype.variables);
+    if (remove.isPending && remove.variables) busy.add(remove.variables);
+    if (update.isPending && update.variables) busy.add(update.variables.id);
+    return busy;
+  }, [
+    confirm.isPending, confirm.variables,
+    dismiss.isPending, dismiss.variables,
+    retype.isPending, retype.variables,
+    remove.isPending, remove.variables,
+    update.isPending, update.variables,
+  ]);
+
+  const onDraw = useCallback(
+    (sourceId: string, targetId: string) => {
+      const source = byId.get(sourceId);
+      const target = byId.get(targetId);
+      // Both ends have to be on the canvas for the dialog to show what is being drawn.
+      // A miss here means a stale render, not a reason to write an edge nobody could see.
+      if (source && target) setDrawn({ source, target });
+    },
+    [byId],
+  );
+
+  /**
+   * `isPending`, not `isLoading` -- and the session's own load alongside it.
+   *
+   * `useConnectionGraph` is `enabled: isSignedIn`, and a *disabled* React Query is not
+   * "loading": `isLoading` is `isPending && isFetching`, which is false while nothing is
+   * allowed to fetch yet. So during the window where `/auth/me` is still in flight this
+   * gate was false, `graph.data` was undefined, `edges` was `[]` -- and the page answered
+   * "Nothing to connect yet" to somebody with a vault full of connections, on every cold
+   * load. `isPending` is true whenever the query has no answer, disabled included, which
+   * is the question actually being asked here.
+   */
+  if (sessionLoading || graph.isPending) return <ConnectionsSkeleton />;
+
+  const edges = graph.data?.edges ?? [];
+  const pending = suggestions.data?.suggestions ?? [];
+
+  // Nothing drawn yet. The picker is a better answer than an empty canvas -- it lists the
+  // memories somebody could connect, which is the next thing they need.
+  if (!graph.isError && edges.length === 0) return <FocusPicker />;
+
+  if (graph.isError || !graph.data) {
+    return (
+      <Card className="gap-0 rounded-3xl border border-destructive/30 bg-destructive/5 py-0 shadow-none ring-0">
+        <CardContent className="px-6 py-12 text-center" role="alert">
+          <h2 className="font-display text-[20px] tracking-tight text-destructive">
+            We couldn&rsquo;t load your map
+          </h2>
+          <p className="mx-auto mt-1.5 max-w-sm text-[13px] leading-relaxed text-destructive/85">
+            Your connections are saved — this is just the map failing to load.
+          </p>
+          <Button
+            variant="ghost"
+            onClick={() => graph.refetch()}
+            className={`${plain} mt-4 h-11 px-4 text-[13.5px] font-semibold text-destructive hover:bg-destructive/10`}
+          >
+            Try again
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4 xl:flex-row">
+      <div className="min-w-0 flex-1">
+        <VaultCanvas
+          graph={graph.data}
+          selectedEdgeId={selectedEdgeId}
+          onSelectEdge={setSelectedEdgeId}
+          onDraw={onDraw}
+          busyEdgeIds={busyEdgeIds}
+        />
+      </div>
+
+      <aside className="flex w-full shrink-0 flex-col gap-4 xl:max-w-sm">
+        {selected ? (
+          <EdgeInspector
+            edge={selected.edge}
+            source={selected.source}
+            target={selected.target}
+            busy={busyEdgeIds.has(selected.edge.id)}
+            // Hidden once the server has answered 503 -- labelling is off by default, so
+            // a button that is always offered is usually one that does nothing. The first
+            // press is what finds out; after that it stops asking.
+            canRetype={!retype.isError}
+            onConfirm={() => confirm.mutate(selected.edge.id)}
+            onDismiss={() => {
+              dismiss.mutate(selected.edge.id);
+              setSelectedEdgeId(null);
+            }}
+            onRelabel={(relation) => update.mutate({ id: selected.edge.id, relation })}
+            onRetype={() => retype.mutate(selected.edge.id)}
+            onRemove={() => {
+              remove.mutate(selected.edge.id);
+              setSelectedEdgeId(null);
+            }}
+            onClose={() => setSelectedEdgeId(null)}
+          />
+        ) : pending.length > 0 ? (
+          <SuggestionInbox suggestions={pending} />
+        ) : (
+          <Card className="gap-0 rounded-[calc(var(--radius)+4px)] border border-dashed border-border py-0 shadow-none ring-0">
+            <CardContent className="p-5">
+              <h2 className="text-[13px] font-semibold">Nothing to review</h2>
+              <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">
+                Every suggestion has been decided. Tap a connection on the map to change or
+                remove it, or drag one memory onto another to make a new one.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </aside>
+
+      <ConnectDialog
+        // Keyed on the pair so a second drag starts from `related_to` and an empty note
+        // rather than inheriting the last one's. See that component's docstring.
+        key={drawn ? `${drawn.source.id}-${drawn.target.id}` : "idle"}
+        pair={drawn}
+        pending={create.isPending}
+        onCancel={() => setDrawn(null)}
+        onConfirm={(relation, note) => {
+          if (!drawn) return;
+          create.mutate(
+            {
+              sourceId: drawn.source.id,
+              targetId: drawn.target.id,
+              relation,
+              note: note.trim() || null,
+            },
+            // Closed on success only. A failed write that dismissed the dialog would
+            // leave somebody looking at a canvas with no new edge and no explanation.
+            { onSuccess: () => setDrawn(null) },
+          );
+        }}
+      />
+    </div>
+  );
+}
+
 
 /**
  * What `/connections` shows with no memory named.
@@ -447,6 +706,7 @@ function SuggestionInbox({ suggestions }: { suggestions: ConnectionSuggestion[] 
  * only honest thing to offer.
  */
 function FocusPicker() {
+  const { isLoading: sessionLoading } = useSession();
   const hubs = useConnectionHubs();
   // Decisions waiting on a person come before anything to browse. A backfill lands a
   // whole vault's worth here at once, and until this rendered there was no page that
@@ -478,7 +738,9 @@ function FocusPicker() {
     [recent.data?.items],
   );
 
-  if (hubs.isLoading || (!hubRows.length && recent.isLoading)) {
+  // Same reason as the gate in `ConnectionView`: a disabled query is not `isLoading`,
+  // and reading it as "done" is what turned a cold load into an empty vault.
+  if (sessionLoading || hubs.isPending || (!hubRows.length && recent.isPending)) {
     return (
       <div aria-busy="true" aria-label="Loading memories" className="flex flex-col gap-2.5">
         {[0, 1, 2, 3, 4].map((i) => (

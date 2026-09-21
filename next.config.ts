@@ -47,6 +47,13 @@ if (process.env.NODE_ENV !== "production" && process.env.APP_ORIGIN) {
 }
 
 const nextConfig: NextConfig = {
+  /**
+   * Emits .next/standalone/server.js -- a server carrying only the modules the app
+   * actually imports, instead of the whole node_modules tree. It is what the Docker
+   * image runs; `next dev` and `next start` are unaffected.
+   */
+  output: "standalone",
+
   allowedDevOrigins: DEV_ORIGINS,
 
   experimental: {

@@ -1,0 +1,24 @@
+# Anything here that is not NEXT_PUBLIC_* is server-side and must not be baked into a
+# layer. Build-time config arrives as --build-arg, runtime config as a k8s Secret.
+.env
+.env.*
+*.pem
+*.key
+
+node_modules
+.next
+out
+.git
+.github
+.vercel
+.DS_Store
+tsconfig.tsbuildinfo
+next-env.d.ts
+coverage
+playwright-report
+test-results
+
+*.md
+!README.md
+
+Dockerfile*
