@@ -51,8 +51,13 @@ const nextConfig: NextConfig = {
    * Emits .next/standalone/server.js -- a server carrying only the modules the app
    * actually imports, instead of the whole node_modules tree. It is what the Docker
    * image runs; `next dev` and `next start` are unaffected.
+   *
+   * Off on Vercel, which packages functions itself and never runs server.js. Next 16.3 with
+   * Turbopack also stops writing `.next/next-server.js.nft.json` when Vercel's adapter is
+   * present, and the standalone step then fails the build with ENOENT (vercel/next.js#96646,
+   * fixed in 16.4). `VERCEL` is set on every Vercel build.
    */
-  output: "standalone",
+  output: process.env.VERCEL ? undefined : "standalone",
 
   allowedDevOrigins: DEV_ORIGINS,
 
