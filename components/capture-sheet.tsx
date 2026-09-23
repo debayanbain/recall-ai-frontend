@@ -210,7 +210,7 @@ function CaptureForm({
 
       event.preventDefault();
       setKind("pdf");
-      if (pasted.error) {
+      if (pasted.error !== undefined) {
         setFile(null);
         setError(pasted.error);
         setPasteNotice(pasted.error);

@@ -22,10 +22,13 @@
  * every request cross-site, which modern Chrome answers by stripping the cookie.
  *
  * Never taken from user input — only from build-time config.
+ *
+ * Unset also means "". Defaulting to localhost baked `http://localhost:8000` into any build
+ * whose host dropped or refused an empty variable (a hosting dashboard, a CI secret), and
+ * every visitor's browser then called its own machine. The rewrite already defaults
+ * BACKEND_ORIGIN to localhost, so local dev reaches the API either way.
  */
-export const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
-).replace(/\/$/, "");
+export const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
 
 export const API_PREFIX = "/api/v1";
 
