@@ -67,8 +67,14 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+/**
+ * `/api/*`, `/health` and `/ready` are left out: they are rewritten straight to FastAPI,
+ * which does the real authorisation, so running this gate on them bought nothing and cost
+ * an extra invocation on every call -- including the polling while an item processes.
+ * Anchored (`api(?:/|$)`, `health$`) so a page such as `/apiary` or `/healthy` is still gated.
+ */
 export const config = {
   matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/((?!_next|api(?:/|$)|health$|ready$|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
   ],
 };
