@@ -20,6 +20,7 @@ import { toast } from "@/lib/toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { LinkPending } from "@/components/link-pending";
 import { MemoryBanner } from "@/components/memory-banner";
 import {
   FilePlaque,
@@ -153,7 +154,9 @@ export function MemoryCard({
               href={`/memory/${m.id}`}
               aria-label={m.title}
               className="absolute inset-0 z-10 rounded-[calc(var(--radius)+4px)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            />
+            >
+              <LinkPending />
+            </Link>
           )
         )}
         <MemoryBanner
@@ -345,7 +348,9 @@ export function MemoryRow({
           href={href ?? `/memory/${m.id}`}
           aria-label={label ?? m.title}
           className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        />
+        >
+          <LinkPending />
+        </Link>
       )}
       <div
         className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl sm:h-14 sm:w-14"

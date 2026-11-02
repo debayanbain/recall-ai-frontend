@@ -4,8 +4,8 @@ import { use } from "react";
 import { Pencil, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { AppShell } from "@/components/app-shell";
+import { SpaceDetailSkeleton } from "@/components/detail-skeletons";
 import { useSpace } from "@/hooks/use-spaces";
 import { SpaceGlyph } from "@/components/space-icon";
 import { gradientFor } from "@/lib/space-accent";
@@ -33,13 +33,7 @@ export function SpaceDetailView({
   if (isLoading) {
     return (
       <AppShell>
-        {/* Same footprint as the hero, so the page does not jump when it lands. */}
-        <Skeleton
-          aria-label="Loading space"
-          className="h-64 w-full rounded-[24px] sm:rounded-[28px] md:h-72"
-        />
-        <Skeleton className="mt-6 h-10 w-full max-w-md rounded-xl" />
-        <Skeleton className="mt-6 h-48 w-full rounded-[calc(var(--radius)+4px)]" />
+        <SpaceDetailSkeleton />
       </AppShell>
     );
   }

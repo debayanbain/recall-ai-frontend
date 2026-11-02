@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AppShell } from "@/components/app-shell";
 import { useSpaces } from "@/hooks/use-spaces";
 import { useAddToSpaceSheet } from "@/components/add-to-space";
+import { LinkPending } from "@/components/link-pending";
 import { SpaceGlyph } from "@/components/space-icon";
 import { gradientFor } from "@/lib/space-accent";
 import type { Space } from "@/lib/types";
@@ -108,8 +109,9 @@ function SpaceCard({ space }: { space: Space }) {
     <Card className="card-soft card-lift group gap-0 overflow-hidden rounded-[calc(var(--radius)+4px)] py-0 shadow-none ring-0">
       <Link
         href={`/spaces/${space.id}`}
-        className="block focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        className="relative block rounded-[inherit] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
+        <LinkPending />
         <div
           className={`relative h-32 bg-linear-to-br sm:h-36 ${gradientFor(space)}`}
         >

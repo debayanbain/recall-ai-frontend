@@ -82,6 +82,15 @@ omission of the two: the list is glanced at, the detail page is *watched* — it
 "Queued" and, after a re-transcription, "Transcribing" indefinitely while the worker had
 finished in fifteen seconds. Nothing was wrong on the server and nothing said so.
 
+**A dynamic route needs a `loading.tsx`, and a card linking to one needs `<LinkPending />`.**
+Without the first, React keeps the old page on screen until the server has answered and the
+page's code has downloaded, so a click on a card changes nothing at all -- not even the URL --
+for as long as that takes, and it reads as a frozen page. `loading.tsx` renders its own
+`AppShell`, because the shell lives in each page rather than in a layout. The second covers
+the moment before the boundary's own payload has arrived (`useLinkStatus`, so it must sit
+inside the `<Link>`). The skeletons are in `components/detail-skeletons.tsx` because the route
+and the page each draw one per navigation, and two copies would make the page jump.
+
 **A failed capture is a state the page explains, not a card with an empty summary.**
 `components/processing-state.tsx` sits above the AI summary and **renders nothing when
 the item completed** — the retry is an escape hatch from a bad state, not a feature of a

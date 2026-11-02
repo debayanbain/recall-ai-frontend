@@ -24,7 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { MemoryDetailSkeleton } from "@/components/detail-skeletons";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -200,14 +200,7 @@ export function MemoryDetail({ id }: { id: string }) {
   }, [confirmingDelete]);
 
   if (sessionLoading || (isSignedIn && isPending)) {
-    return (
-      <div className="space-y-6" aria-busy="true" aria-label="Loading memory">
-        <Skeleton className="h-5 w-56 rounded-lg" />
-        <Skeleton className="h-44 w-full rounded-[24px] sm:h-60 md:h-72" />
-        <Skeleton className="h-10 w-3/4 rounded-lg" />
-        <Skeleton className="h-32 w-full rounded-2xl" />
-      </div>
-    );
+    return <MemoryDetailSkeleton />;
   }
 
   const unauthorized = error instanceof ApiError && error.isUnauthorized;
